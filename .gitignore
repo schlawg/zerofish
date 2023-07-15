@@ -1,0 +1,12 @@
+build/eigen
+build/lc0
+build/Stockfish
+dist/
+node_modules/
+.vscode/
+/?
+.DS_Store
+emccCross.txt
+meson-log.txt
+*.yaml
+*.code-workspace

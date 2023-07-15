@@ -1,0 +1,20 @@
+{
+  "name": "lc0-browser",
+  "version": "1.0.0",
+  "private": true,
+  "author": "Thibault Duplessis",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "dependencies": {
+    "@types/node": "^20.4.1",
+    "@types/web": "^0.0.84",
+    "@types/emscripten": "^1.39.6",
+    "typescript": "^5.1.5"
+  },
+  "scripts": {
+    "node": "tsc && cd dist && pnpm wasm dev && node ./test/node",
+    "wasm": "build/lc0-wasm.sh",
+    "dev": "pnpm wasm dev"
+  },
+  "keywords": [ ]
+}

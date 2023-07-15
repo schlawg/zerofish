@@ -1,0 +1,34 @@
+# this dockerfile does not use patch files. it uses your local sources.
+# these 2 repos are expected in the zerofish/build directory:
+# git clone -b v0.29.0 --depth 1 https://github.com/LeelaChessZero/lc0 .
+# git clone -b 3.4 --depth 1 https://gitlab.com/libeigen/eigen .
+# git clone -b sf_16 --depth 1 https://github.com/offical-stockfish/Stockfish .
+# then you may apply lc0.patch & stockfish.patch and go your own route
+
+FROM emscripten/emsdk
+RUN apt-get update && apt-get install -y ninja-build
+RUN pip3 install meson
+
+WORKDIR /
+
+# WORKDIR /eigen
+# ADD build/eigen.patch /tmp
+# RUN git apply -v /tmp/eigen.patch 
+
+WORKDIR /lc0
+COPY build/lc0 .
+#COPY build/eigen include
+COPY build/emccCross.txt .
+COPY src/emscripten/* .
+RUN mkdir -p build/release
+COPY build/weights.pb build/release
+#ADD lc0.patch /tmp
+#RUN git apply -v /tmp/lc0.patch
+#RUN mkdir include && cp -r /eigen/Eigen include
+#RUN rm /lc0/subprojects/eigen.wrap
+RUN bash -c "./build.sh -Dgtest=false --cross-file=emccCross.txt --default-library=static"
+# right now we target node, hence the createRequire
+RUN cat ./createRequire.js ./build/release/lc0.worker.js > /lc0/build/release/lc0-node.worker.js
+RUN sed -i '0,/require/{s/require/globalThis.require/}' /lc0/build/release/lc0.js
+RUN cat ./createRequire.js ./build/release/lc0.js > /lc0/build/release/lc0-node.js
+

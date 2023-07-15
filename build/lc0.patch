@@ -1,0 +1,575 @@
+diff --git a/meson.build b/meson.build
+index 49b60c1..f629fd1 100644
+--- a/meson.build
++++ b/meson.build
+@@ -140,29 +140,29 @@ elif get_option('malloc') != ''
+ endif
+ 
+ # ONNX protobufs.
+-gen_proto_src = generator(compile_proto, output: ['@BASENAME@.pb.h'],
+-  arguments : [
+-    '--proto_path=@CURRENT_SOURCE_DIR@/src',
+-    '--cpp_out=@BUILD_DIR@',
+-    '@INPUT@'])
++#gen_proto_src = generator(compile_proto, output: ['@BASENAME@.pb.h'],
++#  arguments : [
++#    '--proto_path=@CURRENT_SOURCE_DIR@/src',
++#    '--cpp_out=@BUILD_DIR@',
++#    '@INPUT@'])
+ 
+-files += gen_proto_src.process('src/neural/onnx/onnx.proto',
+-  preserve_path_from : meson.current_source_dir() + '/src/')
++#files += gen_proto_src.process('src/neural/onnx/onnx.proto',
++#  preserve_path_from : meson.current_source_dir() + '/src/')
+ 
+ #############################################################################
+ ## Main files
+ #############################################################################
+ files += [
+-  'src/benchmark/backendbench.cc',
+-  'src/benchmark/benchmark.cc',
++#  'src/benchmark/backendbench.cc',
++#  'src/benchmark/benchmark.cc',
+   'src/chess/bitboard.cc',
+   'src/chess/board.cc',
+   'src/chess/position.cc',
+   'src/chess/uciloop.cc',
+   'src/engine.cc',
+-  'src/lc0ctl/describenet.cc',
+-  'src/lc0ctl/leela2onnx.cc',
+-  'src/lc0ctl/onnx2leela.cc',  
++#  'src/lc0ctl/describenet.cc',
++#  'src/lc0ctl/leela2onnx.cc',
++#  'src/lc0ctl/onnx2leela.cc',  
+   'src/mcts/node.cc',
+   'src/mcts/params.cc',
+   'src/mcts/search.cc',
+@@ -187,20 +187,20 @@ files += [
+   'src/neural/network_record.cc',
+   'src/neural/network_rr.cc',
+   'src/neural/network_trivial.cc',
+-  'src/neural/onnx/adapters.cc',
+-  'src/neural/onnx/builder.cc',
+-  'src/neural/onnx/converter.cc',
+-  'src/selfplay/game.cc',
+-  'src/selfplay/loop.cc',
+-  'src/selfplay/tournament.cc',
++#  'src/neural/onnx/adapters.cc',
++#  'src/neural/onnx/builder.cc',
++#  'src/neural/onnx/converter.cc',
++#  'src/selfplay/game.cc',
++#  'src/selfplay/loop.cc',
++#  'src/selfplay/tournament.cc',
+   'src/syzygy/syzygy.cc',
+-  'src/trainingdata/reader.cc',
+-  'src/trainingdata/trainingdata.cc',
+-  'src/trainingdata/writer.cc',
++#  'src/trainingdata/reader.cc',
++#  'src/trainingdata/trainingdata.cc',
++#  'src/trainingdata/writer.cc',
+   'src/utils/commandline.cc',
+   'src/utils/configfile.cc',
+   'src/utils/esc_codes.cc',
+-  'src/utils/files.cc',
++#  'src/utils/files.cc',
+   'src/utils/histogram.cc',
+   'src/utils/logging.cc',
+   'src/utils/numa.cc',
+@@ -629,7 +627,7 @@ endif
+     # caused trouble (crashes or failed builds). Better safe than sorry.
+     deps += subproject('zlib').get_variable('zlib_dep')
+   else
+-    deps += dependency('zlib', fallback: ['zlib', 'zlib_dep'])
++#    deps += dependency('zlib', fallback: ['zlib', 'zlib_dep'])
+   endif
+ 
+   ## ~~~~~~~~
+diff --git a/src/chess/pgn.h b/src/chess/pgn.h
+index 512d4c6..2588f11 100644
+--- a/src/chess/pgn.h
++++ b/src/chess/pgn.h
+@@ -27,8 +27,6 @@
+ 
+ #pragma once
+ 
+-#include <zlib.h>
+-
+ #include <algorithm>
+ #include <cctype>
+ #include <cerrno>
+@@ -46,11 +44,11 @@ struct Opening {
+   MoveList moves;
+ };
+ 
+-inline bool GzGetLine(gzFile file, std::string& line) {
++inline bool GetLine(FILE *file, std::string& line) {
+   bool flag = false;
+   char s[2000];
+   line.clear();
+-  while (gzgets(file, s, sizeof(s))) {
++  while (fgets(s, sizeof(s), file)) {
+     flag = true;
+     line += s;
+     auto r = line.find_last_of('\n');
+@@ -65,7 +63,7 @@ inline bool GzGetLine(gzFile file, std::string& line) {
+ class PgnReader {
+  public:
+   void AddPgnFile(const std::string& filepath) {
+-    const gzFile file = gzopen(filepath.c_str(), "r");
++    const FILE *file = fopen(filepath.c_str(), "r");
+     if (!file) {
+       throw Exception(errno == ENOENT ? "Opening book file not found."
+                                       : "Error opening opening book file.");
+@@ -74,7 +72,7 @@ class PgnReader {
+     std::string line;
+     bool in_comment = false;
+     bool started = false;
+-    while (GzGetLine(file, line)) {
++    while (GetLine(file, line)) {
+       // Check if we have a UTF-8 BOM. If so, just ignore it.
+       // Only supposed to exist in the first line, but should not matter.
+       if (line.substr(0,3) == "\xEF\xBB\xBF") line = line.substr(3);
+diff --git a/src/chess/uciloop.cc b/src/chess/uciloop.cc
+index ad76b25..6287d38 100644
+--- a/src/chess/uciloop.cc
++++ b/src/chess/uciloop.cc
+@@ -145,6 +145,16 @@ void UciLoop::RunLoop() {
+   }
+ }
+ 
++void UciLoop::ProcessCommand(const std::string& command) {
++  try {
++    auto parsed_command = ParseCommand(command);
++    if (parsed_command.first.empty()) return;
++    DispatchCommand(parsed_command.first, parsed_command.second);
++  } catch (Exception& ex) {
++    SendResponse(std::string("error ") + ex.what());
++  }
++}
++
+ bool UciLoop::DispatchCommand(
+     const std::string& command,
+     const std::unordered_map<std::string, std::string>& params) {
+diff --git a/src/chess/uciloop.h b/src/chess/uciloop.h
+index bae8e3d..558d264 100644
+--- a/src/chess/uciloop.h
++++ b/src/chess/uciloop.h
+@@ -56,7 +56,7 @@ class UciLoop {
+  public:
+   virtual ~UciLoop() {}
+   virtual void RunLoop();
+-
++  virtual void ProcessCommand(const std::string& command);
+   // Sends response to host.
+   void SendResponse(const std::string& response);
+   // Sends responses to host ensuring they are received as a block.
+diff --git a/src/main.cc b/src/main.cc
+index 4c8880d..5e70166 100644
+--- a/src/main.cc
++++ b/src/main.cc
+@@ -24,71 +24,33 @@
+   terms of the respective license agreement, the licensors of this
+   Program grant you additional permission to convey the resulting work.
+ */
++#include <emscripten.h>
++#include <string>
+ 
+-#include "benchmark/backendbench.h"
+-#include "benchmark/benchmark.h"
+ #include "chess/board.h"
+ #include "engine.h"
+ #include "lc0ctl/describenet.h"
+-#include "lc0ctl/leela2onnx.h"
+-#include "lc0ctl/onnx2leela.h"
+-#include "selfplay/loop.h"
+-#include "utils/commandline.h"
+ #include "utils/esc_codes.h"
+ #include "utils/logging.h"
+ #include "version.h"
+ 
+-int main(int argc, const char** argv) {
+-  using namespace lczero;
+-  EscCodes::Init();
+-  LOGFILE << "Lc0 started.";
+-  CERR << EscCodes::Bold() << EscCodes::Red() << "       _";
+-  CERR << "|   _ | |";
+-  CERR << "|_ |_ |_|" << EscCodes::Reset() << " v" << GetVersionStr()
+-       << " built " << __DATE__;
++lczero::EngineLoop *loop = nullptr;
+ 
++extern "C" {
++  EMSCRIPTEN_KEEPALIVE void process_command(const char* utf8) {
++    loop->ProcessCommand(utf8);
++  }
++}
++
++EMSCRIPTEN_KEEPALIVE int main(int argc, const char** argv) {
++  using namespace lczero;
+   try {
+     InitializeMagicBitboards();
+-
+-    CommandLine::Init(argc, argv);
+-    CommandLine::RegisterMode("uci", "(default) Act as UCI engine");
+-    CommandLine::RegisterMode("selfplay", "Play games with itself");
+-    CommandLine::RegisterMode("benchmark", "Quick benchmark");
+-    CommandLine::RegisterMode("backendbench",
+-                              "Quick benchmark of backend only");
+-    CommandLine::RegisterMode("leela2onnx", "Convert Leela network to ONNX.");
+-    CommandLine::RegisterMode("onnx2leela",
+-                              "Convert ONNX network to Leela net.");
+-    CommandLine::RegisterMode("describenet",
+-                              "Shows details about the Leela network.");
+-
+-    if (CommandLine::ConsumeCommand("selfplay")) {
+-      // Selfplay mode.
+-      SelfPlayLoop loop;
+-      loop.RunLoop();
+-    } else if (CommandLine::ConsumeCommand("benchmark")) {
+-      // Benchmark mode.
+-      Benchmark benchmark;
+-      benchmark.Run();
+-    } else if (CommandLine::ConsumeCommand("backendbench")) {
+-      // Backend Benchmark mode.
+-      BackendBenchmark benchmark;
+-      benchmark.Run();
+-    } else if (CommandLine::ConsumeCommand("leela2onnx")) {
+-      lczero::ConvertLeelaToOnnx();
+-    } else if (CommandLine::ConsumeCommand("onnx2leela")) {
+-      lczero::ConvertOnnxToLeela();
+-    } else if (CommandLine::ConsumeCommand("describenet")) {
+-      lczero::DescribeNetworkCmd();
+-    } else {
+-      // Consuming optional "uci" mode.
+-      CommandLine::ConsumeCommand("uci");
+-      // Ordinary UCI engine.
+-      EngineLoop loop;
+-      loop.RunLoop();
+-    }
++    loop = new EngineLoop();
+   } catch (std::exception& e) {
+     std::cerr << "Unhandled exception: " << e.what() << std::endl;
+     abort();
+   }
+ }
++
++
+diff --git a/src/neural/loader.cc b/src/neural/loader.cc
+index 7f3ff3e..8e3003e 100644
+--- a/src/neural/loader.cc
++++ b/src/neural/loader.cc
+@@ -27,8 +27,6 @@
+ 
+ #include "neural/loader.h"
+ 
+-#include <zlib.h>
+-
+ #include <algorithm>
+ #include <cassert>
+ #include <cctype>
+@@ -52,92 +50,29 @@
+ 
+ namespace lczero {
+ 
+-namespace {
+ const std::uint32_t kWeightMagic = 0x1c0;
+ 
+-std::string DecompressGzip(const std::string& filename) {
+-  const int kStartingSize = 8 * 1024 * 1024;  // 8M
+-  std::string buffer;
+-  buffer.resize(kStartingSize);
+-  int bytes_read = 0;
+-
+-  // Read whole file into a buffer.
+-  FILE* fp = fopen(filename.c_str(), "rb");
+-  if (!fp) {
+-    throw Exception("Cannot read weights from " + filename);
+-  }
+-  if (filename == CommandLine::BinaryName()) {
+-    // The network file should be appended at the end of the lc0 executable,
+-    // followed by the network file size and a "Lc0!" (0x2130634c) magic.
+-    int32_t size, magic;
+-    if (fseek(fp, -8, SEEK_END) || fread(&size, 4, 1, fp) != 1 ||
+-        fread(&magic, 4, 1, fp) != 1 || magic != 0x2130634c) {
+-      fclose(fp);
+-      throw Exception("No embedded file detected.");
+-    }
+-    fseek(fp, -size - 8, SEEK_END);
+-  }
+-  fflush(fp);
+-  gzFile file = gzdopen(dup(fileno(fp)), "rb");
+-  fclose(fp);
+-  if (!file) {
+-    throw Exception("Cannot process file " + filename);
+-  }
+-  while (true) {
+-    const int sz =
+-        gzread(file, &buffer[bytes_read], buffer.size() - bytes_read);
+-    if (sz < 0) {
+-      int errnum;
+-      throw Exception(gzerror(file, &errnum));
+-    }
+-    if (sz == static_cast<int>(buffer.size()) - bytes_read) {
+-      bytes_read = buffer.size();
+-      buffer.resize(buffer.size() * 2);
+-    } else {
+-      bytes_read += sz;
+-      buffer.resize(bytes_read);
+-      break;
+-    }
++WeightsFile LoadWeightsFromFile(const std::string& filename) {
++  std::ifstream is(filename, std::ios::binary);
++  is.seekg(0, std::ios::end);
++  std::string pb(is.tellg(), 0);
++  is.seekg(0, std::ios::beg);
++  is.read(&pb[0], pb.size());
++  is.close();
++
++  if (pb.size() < 2) {
++    throw Exception("Invalid weight file: too small.");
+   }
+-  gzclose(file);
+-
+-  return buffer;
+-}
+-
+-void FixOlderWeightsFile(WeightsFile* file) {
+-  using nf = pblczero::NetworkFormat;
+-  auto network_format = file->format().network_format().network();
+-  const auto has_network_format = file->format().has_network_format();
+-  if (has_network_format && network_format != nf::NETWORK_CLASSICAL &&
+-      network_format != nf::NETWORK_SE) {
+-    // Already in a new format, return unchanged.
+-    return;
++  if (pb[0] == '1' && pb[1] == '\n') {
++    throw Exception("Invalid weight file: no longer supported.");
+   }
+-
+-  auto* net = file->mutable_format()->mutable_network_format();
+-  if (!has_network_format) {
+-    // Older protobufs don't have format definition.
+-    net->set_input(nf::INPUT_CLASSICAL_112_PLANE);
+-    net->set_output(nf::OUTPUT_CLASSICAL);
+-    net->set_network(nf::NETWORK_CLASSICAL_WITH_HEADFORMAT);
+-    net->set_value(nf::VALUE_CLASSICAL);
+-    net->set_policy(nf::POLICY_CLASSICAL);
+-  } else if (network_format == pblczero::NetworkFormat::NETWORK_CLASSICAL) {
+-    // Populate policyFormat and valueFormat fields in old protobufs
+-    // without these fields.
+-    net->set_network(nf::NETWORK_CLASSICAL_WITH_HEADFORMAT);
+-    net->set_value(nf::VALUE_CLASSICAL);
+-    net->set_policy(nf::POLICY_CLASSICAL);
+-  } else if (network_format == pblczero::NetworkFormat::NETWORK_SE) {
+-    net->set_network(nf::NETWORK_SE_WITH_HEADFORMAT);
+-    net->set_value(nf::VALUE_CLASSICAL);
+-    net->set_policy(nf::POLICY_CLASSICAL);
++  if (pb[0] == '2' && pb[1] == '\n') {
++    throw Exception(
++        "Text format weights files are no longer supported. Use a command line "
++        "tool to convert it to the new format.");
+   }
+-}
+-
+-WeightsFile ParseWeightsProto(const std::string& buffer) {
+   WeightsFile net;
+-  net.ParseFromString(buffer);
++  net.ParseFromString(pb);
+ 
+   if (net.magic() != kWeightMagic) {
+     throw Exception("Invalid weight file: bad header.");
+@@ -151,8 +86,6 @@ WeightsFile ParseWeightsProto(const std::string& buffer) {
+       GetVersionInt(net.min_version().major(), net.min_version().minor(),
+                     net.min_version().patch());
+ 
+-  FixOlderWeightsFile(&net);
+-
+   // Weights files with this signature are also compatible.
+   if (net_ver != 0x5c99973 && net_ver > lc0_ver) {
+     throw Exception("Invalid weight file: lc0 version >= " + min_version +
+@@ -167,86 +100,7 @@ WeightsFile ParseWeightsProto(const std::string& buffer) {
+   return net;
+ }
+ 
+-}  // namespace
+-
+-WeightsFile LoadWeightsFromFile(const std::string& filename) {
+-  FloatVectors vecs;
+-  auto buffer = DecompressGzip(filename);
+-
+-  if (buffer.size() < 2) {
+-    throw Exception("Invalid weight file: too small.");
+-  }
+-  if (buffer[0] == '1' && buffer[1] == '\n') {
+-    throw Exception("Invalid weight file: no longer supported.");
+-  }
+-  if (buffer[0] == '2' && buffer[1] == '\n') {
+-    throw Exception(
+-        "Text format weights files are no longer supported. Use a command line "
+-        "tool to convert it to the new format.");
+-  }
+-
+-  return ParseWeightsProto(buffer);
+-}
+-
+ std::string DiscoverWeightsFile() {
+-  const int kMinFileSize = 500000;  // 500 KB
+-
+-  std::vector<std::string> data_dirs = {CommandLine::BinaryDirectory()};
+-  const std::string user_data_path = GetUserDataDirectory();
+-  if (!user_data_path.empty()) {
+-    data_dirs.emplace_back(user_data_path + "lc0");
+-  }
+-  for (const auto& dir : GetSystemDataDirectoryList()) {
+-    data_dirs.emplace_back(dir + (dir.back() == '/' ? "" : "/") + "lc0");
+-  }
+-
+-  for (const auto& dir : data_dirs) {
+-    // Open all files in <dir> amd <dir>/networks,
+-    // ones which are >= kMinFileSize are candidates.
+-    std::vector<std::pair<time_t, std::string> > time_and_filename;
+-    for (const auto& path : {"", "/networks"}) {
+-      for (const auto& file : GetFileList(dir + path)) {
+-        const std::string filename = dir + path + "/" + file;
+-        if (GetFileSize(filename) < kMinFileSize) continue;
+-        time_and_filename.emplace_back(GetFileTime(filename), filename);
+-      }
+-    }
+-
+-    std::sort(time_and_filename.rbegin(), time_and_filename.rend());
+-
+-    // Open all candidates, from newest to oldest, possibly gzipped, and try to
+-    // read version for it. If version is 2 or if the file is our protobuf,
+-    // return it.
+-    for (const auto& candidate : time_and_filename) {
+-      const gzFile file = gzopen(candidate.second.c_str(), "rb");
+-
+-      if (!file) continue;
+-      unsigned char buf[256];
+-      int sz = gzread(file, buf, 256);
+-      gzclose(file);
+-      if (sz < 0) continue;
+-
+-      std::string str(buf, buf + sz);
+-      std::istringstream data(str);
+-      int val = 0;
+-      data >> val;
+-      if (!data.fail() && val == 2) {
+-        CERR << "Found txt network file: " << candidate.second;
+-        return candidate.second;
+-      }
+-
+-      // First byte of the protobuf stream is 0x0d for fixed32, so we ignore it
+-      // as our own magic should suffice.
+-      const auto magic = buf[1] | (static_cast<uint32_t>(buf[2]) << 8) |
+-                         (static_cast<uint32_t>(buf[3]) << 16) |
+-                         (static_cast<uint32_t>(buf[4]) << 24);
+-      if (magic == kWeightMagic) {
+-        CERR << "Found pb network file: " << candidate.second;
+-        return candidate.second;
+-      }
+-    }
+-  }
+-  LOGFILE << "Network weights file not found.";
+   return {};
+ }
+ 
+diff --git a/src/utils/exception.h b/src/utils/exception.h
+index 7602d5a..bdec04e 100644
+--- a/src/utils/exception.h
++++ b/src/utils/exception.h
+@@ -36,7 +36,7 @@ namespace lczero {
+ class Exception : public std::runtime_error {
+  public:
+   Exception(const std::string& what) : std::runtime_error(what) {
+-    LOGFILE << "Exception: " << what;
++    EXCEPTION(what);
+   }
+ };
+ 
+diff --git a/src/utils/logging.cc b/src/utils/logging.cc
+index b4d4aa1..b63666a 100644
+--- a/src/utils/logging.cc
++++ b/src/utils/logging.cc
+@@ -30,6 +30,7 @@
+ #include <iomanip>
+ #include <iostream>
+ #include <thread>
++#include <emscripten.h>
+ 
+ namespace lczero {
+ 
+@@ -93,6 +94,21 @@ StdoutLogMessage::~StdoutLogMessage() {
+   log_ << str();
+ }
+ 
++EM_JS(void, js_log, (const char* str), {
++  Module.exception(UTF8ToString(str));
++});
++
++void ExceptionMessage(const char* file, int line, const std::string& what) {
++  std::ostringstream ss;
++  ss << FormatTime(std::chrono::system_clock::now()) << ' '
++        << std::setfill(' ') << std::this_thread::get_id() << std::setfill('0')
++        << ' ' << file << ':' << line << "] " << what << std::endl;
++  char stackTrace[8192];
++  emscripten_get_callstack(/*EM_LOG_C_STACK*/0, stackTrace, sizeof(stackTrace));
++  ss << stackTrace << std::endl;
++  js_log(ss.str().c_str());
++}
++
+ std::chrono::time_point<std::chrono::system_clock> SteadyClockToSystemClock(
+     std::chrono::time_point<std::chrono::steady_clock> time) {
+   return std::chrono::system_clock::now() +
+diff --git a/src/utils/logging.h b/src/utils/logging.h
+index a9508de..e2b8a85 100644
+--- a/src/utils/logging.h
++++ b/src/utils/logging.h
+@@ -81,6 +81,8 @@ class StdoutLogMessage : public std::ostringstream {
+   LogMessage log_;
+ };
+ 
++void ExceptionMessage(const char *file, int line, const std::string& what);
++
+ std::chrono::time_point<std::chrono::system_clock> SteadyClockToSystemClock(
+     std::chrono::time_point<std::chrono::steady_clock> time);
+ 
+@@ -89,4 +91,5 @@ std::string FormatTime(std::chrono::time_point<std::chrono::system_clock> time);
+ 
+ #define LOGFILE ::lczero::LogMessage(__FILE__, __LINE__)
+ #define CERR ::lczero::StderrLogMessage(__FILE__, __LINE__)
+-#define COUT ::lczero::StdoutLogMessage(__FILE__, __LINE__)
+\ No newline at end of file
++#define COUT ::lczero::StdoutLogMessage(__FILE__, __LINE__)
++#define EXCEPTION(x) ::lczero::ExceptionMessage(__FILE__, __LINE__, x)
+\ No newline at end of file
+diff --git a/subprojects/gtest.wrap b/subprojects/gtest.wrap
+deleted file mode 100644
+index ca5d699..0000000
+--- a/subprojects/gtest.wrap
++++ /dev/null
+@@ -1,10 +0,0 @@
+-[wrap-file]
+-directory = googletest-release-1.10.0
+-
+-source_url = https://github.com/google/googletest/archive/release-1.10.0.zip
+-source_filename = gtest-1.10.0.zip
+-source_hash = 94c634d499558a76fa649edb13721dce6e98fb1e7018dfaeba3cd7a083945e91
+-
+-patch_url = https://wrapdb.mesonbuild.com/v1/projects/gtest/1.10.0/1/get_zip
+-patch_filename = gtest-1.10.0-1-wrap.zip
+-patch_hash = 04ff14e8880e4e465f6260221e9dfd56fea6bc7cce4c4aff0dc528e4a2c8f514
+diff --git a/subprojects/zlib.wrap b/subprojects/zlib.wrap
+deleted file mode 100644
+index 91c1d4d..0000000
+--- a/subprojects/zlib.wrap
++++ /dev/null
+@@ -1,10 +0,0 @@
+-[wrap-file]
+-directory = zlib-1.2.11
+-
+-source_url = http://zlib.net/fossils/zlib-1.2.11.tar.gz
+-source_filename = zlib-1.2.11.tar.gz
+-source_hash = c3e5e9fdd5004dcb542feda5ee4f0ff0744628baf8ed2dd5d66f8ca1197cb1a1
+-
+-patch_url = https://wrapdb.mesonbuild.com/v1/projects/zlib/1.2.11/4/get_zip
+-patch_filename = zlib-1.2.11-4-wrap.zip
+-patch_hash = f733976fbfc59e0bcde01aa9469a24eeb16faf0a4280b17e9eaa60a301d75657
