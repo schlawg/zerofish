@@ -12,9 +12,9 @@
     "typescript": "^5.1.5"
   },
   "scripts": {
-    "node": "tsc && cd dist && pnpm wasm dev && node ./test/node",
-    "wasm": "build/build-wasm.sh",
-    "dev": "pnpm wasm dev"
+    "test": "tsc && cd dist && node ./test/node",
+    "wasm": "wasm/build.sh",
+    "clean": "rm -rf dist && if [ -d wasm/lc0 ]; then git -C wasm/lc0 clean -fdx; fi && if [ -d Stockfish ]; then git -C Stockfish clean -fdx; fi"
   },
   "keywords": [ ]
 }

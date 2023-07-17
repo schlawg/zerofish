@@ -7,10 +7,9 @@ function getCallerFile() {
   Error.prepareStackTrace = (_, stack) => stack;
   const stack = new Error().stack;
   Error.prepareStackTrace = oldPrepareStackTrace;
-  if (stack !== null && typeof stack === 'object') {
-    return stack[2] ? stack[2].getFileName() : undefined;
-  }
+  if (typeof stack === 'object' && stack[2]) return stack[2].getFileName();
 }
+
 globalThis.__filename = () => fileURLToPath(getCallerFile());
 globalThis.__dirname = dirname;
 globalThis.require = createRequire(import.meta.url);

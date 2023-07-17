@@ -1,12 +1,12 @@
-build/eigen
-build/lc0
-build/Stockfish
+wasm/lc0
+wasm/Stockfish
+wasm/stockfish.Makefile
+wasm/lc0.crossfile
 dist/
 node_modules/
 .vscode/
 /?
 .DS_Store
-emccCross.txt
-meson-log.txt
+lc0.log
 *.yaml
 *.code-workspace
