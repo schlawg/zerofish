@@ -1,7 +1,7 @@
-const lc0Channel = new MessageChannel();
+const coutChannel = new MessageChannel();
 
-Module.listenPort = lc0Channel.port1;
-Module.sendPort = lc0Channel.port2;
+Module.listenPort = coutChannel.port1;
+Module.sendPort = coutChannel.port2;
 
 Module.uci = cmd => {
   const utf8 = stringToNewUTF8(cmd);

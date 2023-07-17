@@ -13,7 +13,7 @@
   },
   "scripts": {
     "node": "tsc && cd dist && pnpm wasm dev && node ./test/node",
-    "wasm": "build/lc0-wasm.sh",
+    "wasm": "build/build-wasm.sh",
     "dev": "pnpm wasm dev"
   },
   "keywords": [ ]

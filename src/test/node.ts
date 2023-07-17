@@ -1,8 +1,11 @@
 import * as readline from 'node:readline';
 // @ts-ignore
 import createLc0 from '../lc0.js';
+// @ts-ignore
+import createStockfish from '../stockfish.js';
 
 const lc0 = await createLc0();
+const stockfish = await createStockfish();
 
 readline
   .createInterface({
@@ -10,11 +13,13 @@ readline
     output: process.stdout,
     terminal: false,
   })
-  .on('line', (line: string) => lc0.uci(line));
+  .on('line', (line: string) => stockfish.uci(line));
 lc0.listenPort.onmessage = (e: MessageEvent) => {
-  console.log('got', e.data);
+  console.log('lc0', e.data);
 };
-
+stockfish.listenPort.onmessage = (e: MessageEvent) => {
+  console.log('stockfish', e.data);
+};
 console.log('ready... ');
 
 lc0.uci('uci');
