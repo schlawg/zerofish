@@ -8,7 +8,7 @@ export interface SearchOpts {
 export type PV = { moves: string[]; score: number; depth: number };
 
 export interface Zerofish {
-  setZeroWeights: (weights: ArrayBuffer) => void;
+  setZeroWeights: (weights: Uint8Array) => void;
   goZero: (fen: string) => Promise<string>;
   goFish: (fen: string, opts: SearchOpts) => Promise<PV[]>;
   stop: () => void;
@@ -16,12 +16,12 @@ export interface Zerofish {
 
 export async function initModule({ urlBase } = { urlBase: '.' }): Promise<Zerofish> {
   //@ts-ignore
-  const asset = await import(`${urlBase}/zerofishWasm.js`);
+  const asset = await import(`${urlBase}/zerofishEngine.js`);
   const wasm = await asset.default();
   console.log(wasm);
 
   return {
-    setZeroWeights: (weights: ArrayBuffer) => wasm.setWeights(weights),
+    setZeroWeights: (weights: Uint8Array) => wasm.setZeroWeights(weights),
     goZero: (fen: string) =>
       new Promise<string>((resolve, reject) => {
         wasm.listenZero.onmessage = (e: MessageEvent) => {

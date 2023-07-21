@@ -20,11 +20,12 @@ Module.uci = (cmd, isFish) => {
   _free(utf8);
 };
 
-Module.setZero = (w /*: ArrayBuffer*/) => {
-  const p = Module._malloc(w.byteLength);
-  Module.HEAP8.set(new Int8Array(w), p);
-  _set_weights(p, w.byteLength);
-  Module._free(p);
+Module.setZeroWeights = (weights /*: Uint8Array*/) => {
+  const heapWeights = Module._malloc(weights.byteLength);
+  if (!heapWeights) throw new Error(`Could not allocate ${weights.byteLength} bytes`);
+  Module.HEAPU8.set(weights, heapWeights);
+  _set_weights(heapWeights, weights.byteLength);
+  _free(heapWeights);
 };
 
 Module.print = cout => console.info(cout);

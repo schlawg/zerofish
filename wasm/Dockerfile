@@ -3,4 +3,4 @@ WORKDIR /zf
 COPY wasm/*.patch wasm/fetchSources.sh .
 RUN ./fetchSources.sh
 COPY wasm/Makefile src/emscripten/* .
-RUN make && mkdir dist && mv zerofishWasm.* dist
+RUN make && mkdir dist && mv zerofishEngine.* dist

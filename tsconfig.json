@@ -11,7 +11,7 @@
     "outDir": "./dist",
     "baseUrl": ".",
     "paths": {
-      "zerofishWasm": ["./dist/zerofishWasm.js"],
+      "zerofishEngine": ["./dist/zerofishEngine.js"],
     },
     "skipLibCheck": true,
     "noImplicitThis": false,

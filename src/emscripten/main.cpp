@@ -65,15 +65,19 @@ lczero::EngineLoop *loop = nullptr;
 Stockfish::Position *pos = nullptr;
 Stockfish::StateListPtr states(new std::deque<Stockfish::StateInfo>(1));
 
-extern "C" EMSCRIPTEN_KEEPALIVE void uci(const char* utf8, int isFish) {
-  if (isFish)
-    Stockfish::UCI::process_command(utf8, *pos, states);
-  else
-    loop->ProcessCommand(utf8);
+// messaging code from engine to JS frontend can be found in Stockfish/src/misc.cpp
+// and lc0/src/chess/uciloop.cc respectively. look for EM_JS macros.
+
+extern "C" EMSCRIPTEN_KEEPALIVE void uci(const char *utf8, int isFish) {
+  if (isFish) Stockfish::UCI::process_command(utf8, *pos, states);
+  else loop->ProcessCommand(utf8);
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE void set_weights(const unsigned char *buf, size_t sz) {
+  loop->SetWeightsBuffer(buf, sz);
 }
 
 EMSCRIPTEN_KEEPALIVE int main() {
-
   Stockfish::UCI::init(Stockfish::Options);
   Stockfish::PSQT::init();
   Stockfish::Bitboards::init();
@@ -84,7 +88,6 @@ EMSCRIPTEN_KEEPALIVE int main() {
   Stockfish::Search::clear(); // After threads are up
   pos = new Stockfish::Position();
   pos->set("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false, &states->back(), Stockfish::Threads.main());
-
   lczero::InitializeMagicBitboards();
   loop = new lczero::EngineLoop();
   return 0;

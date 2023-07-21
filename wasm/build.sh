@@ -60,7 +60,7 @@ function main() {
     neural/shared/activation.cc neural/shared/winograd_filter.cc utils/histogram.cc
     utils/logging.cc utils/numa.cc utils/optionsdict.cc utils/optionsparser.cc
     utils/protomessage.cc utils/random.cc  utils/string.cc utils/weights_adapter.cc
-    utils/fp16_utils.cc version.cc
+    version.cc
   )
 
   for i in "${!LC0_SOURCES[@]}"; do
@@ -82,14 +82,15 @@ function main() {
   else
     dockerBuild
   fi
-  maybeCreateRequire "$OUT_DIR/zerofishWasm.worker.js"
+  maybeCreateRequire "$OUT_DIR/zerofishEngine.worker.js"
 }
 
 function localBuild() {
   pushd wasm > /dev/null
   . fetchSources.sh
+  echo $(pwd)
   make
-  mv zerofishWasm.* "$OUT_DIR"
+  mv zerofishEngine.* "$OUT_DIR"
   popd > /dev/null
 }
 
@@ -110,7 +111,7 @@ function maybeCreateRequire() { # coax the es6 emscripten output into working wi
 
 function setVariablesFromArgs() {
   # defaults
-  ARTIFACT="zerofishWasm"
+  ARTIFACT="zerofishEngine"
   OPT_FLAGS=(-O3 -DNDEBUG)
   ENVIRONMENT="web,worker"
   LOCAL=true
@@ -120,7 +121,7 @@ function setVariablesFromArgs() {
   while test $# -gt 0; do
     if [ "$1" == "debug" ]; then
       DEBUG=true
-      OPT_FLAGS=(-O0 -DDEBUG -sASSERTIONS -g3 -sNO_DISABLE_EXCEPTION_CATCHING)
+      OPT_FLAGS=(-O0 -DDEBUG -sASSERTIONS -g3 -sSAFE_HEAP -sNO_DISABLE_EXCEPTION_CATCHING)
     elif [ "$1" == "docker" ]; then
       unset LOCAL
     elif [ "$1" == "force" ]; then
