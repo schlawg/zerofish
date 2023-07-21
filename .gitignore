@@ -1,12 +1,12 @@
 wasm/lc0
+wasm/eigen
 wasm/Stockfish
-wasm/stockfish.Makefile
-wasm/lc0.crossfile
+wasm/Makefile
 dist/
 node_modules/
+**.o
 .vscode/
 /?
 .DS_Store
-lc0.log
 *.yaml
 *.code-workspace

@@ -1,5 +1,5 @@
 {
-  "include": ["src/*.ts", "src/test/*.ts"],
+  "include": ["src"],
   "exclude": [],
   
   "compilerOptions": {
@@ -9,15 +9,19 @@
     "noUnusedParameters": false,
     "allowUnreachableCode": true,
     "outDir": "./dist",
+    "baseUrl": ".",
+    "paths": {
+      "zerofishWasm": ["./dist/zerofishWasm.js"],
+    },
     "skipLibCheck": true,
-    "noImplicitThis": true,
+    "noImplicitThis": false,
     "inlineSourceMap": true,
-    "inlineSources": true,
+    "inlineSources": false,
     "strict": true,
     "module": "ESNext",
+    "target": "ES2020",
     "moduleResolution": "node",
     "lib": ["ES2020", "DOM"],
-    "target": "ES2020",
     "types": ["node", "web"]
   }
 }

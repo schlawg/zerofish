@@ -1,35 +1,47 @@
+diff --git a/.gitignore b/.gitignore
+index c90b403..46d2af2 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -16,4 +16,6 @@ testdata/
+ xcuserdata
+ .clang-tidy
+ compile_flags.txt
+-.vscode
+\ No newline at end of file
++.vscode
++src/**/*.o
++*.pb.h
+\ No newline at end of file
+diff --git a/build.sh b/build.sh
+index deca6e9..55199cd 100755
+--- a/build.sh
++++ b/build.sh
+@@ -23,7 +23,7 @@ fi
+ 
+ if [ -f ${BUILDDIR}/build.ninja ]
+ then
+-  meson configure ${BUILDDIR} -Dbuildtype=${BUILDTYPE} -Dprefix=${INSTALL_PREFIX:-/usr/local} "$@"
++  meson configure ${BUILDDIR} -Dbuildtype=${BUILDTYPE} -Dprefix=${INSTALL_PREFIX:-/usr/local}
+ else
+   meson ${BUILDDIR} --buildtype ${BUILDTYPE} --prefix ${INSTALL_PREFIX:-/usr/local} "$@"
+ fi
 diff --git a/meson.build b/meson.build
-index 49b60c1..f629fd1 100644
+index 49b60c1..c9dff6a 100644
 --- a/meson.build
 +++ b/meson.build
-@@ -140,29 +140,29 @@ elif get_option('malloc') != ''
- endif
- 
- # ONNX protobufs.
--gen_proto_src = generator(compile_proto, output: ['@BASENAME@.pb.h'],
--  arguments : [
--    '--proto_path=@CURRENT_SOURCE_DIR@/src',
--    '--cpp_out=@BUILD_DIR@',
--    '@INPUT@'])
-+#gen_proto_src = generator(compile_proto, output: ['@BASENAME@.pb.h'],
-+#  arguments : [
-+#    '--proto_path=@CURRENT_SOURCE_DIR@/src',
-+#    '--cpp_out=@BUILD_DIR@',
-+#    '@INPUT@'])
+@@ -146,23 +146,15 @@ gen_proto_src = generator(compile_proto, output: ['@BASENAME@.pb.h'],
+     '--cpp_out=@BUILD_DIR@',
+     '@INPUT@'])
  
 -files += gen_proto_src.process('src/neural/onnx/onnx.proto',
 -  preserve_path_from : meson.current_source_dir() + '/src/')
-+#files += gen_proto_src.process('src/neural/onnx/onnx.proto',
-+#  preserve_path_from : meson.current_source_dir() + '/src/')
- 
+-
  #############################################################################
  ## Main files
  #############################################################################
  files += [
 -  'src/benchmark/backendbench.cc',
 -  'src/benchmark/benchmark.cc',
-+#  'src/benchmark/backendbench.cc',
-+#  'src/benchmark/benchmark.cc',
    'src/chess/bitboard.cc',
    'src/chess/board.cc',
    'src/chess/position.cc',
@@ -38,13 +50,10 @@ index 49b60c1..f629fd1 100644
 -  'src/lc0ctl/describenet.cc',
 -  'src/lc0ctl/leela2onnx.cc',
 -  'src/lc0ctl/onnx2leela.cc',  
-+#  'src/lc0ctl/describenet.cc',
-+#  'src/lc0ctl/leela2onnx.cc',
-+#  'src/lc0ctl/onnx2leela.cc',  
    'src/mcts/node.cc',
    'src/mcts/params.cc',
    'src/mcts/search.cc',
-@@ -187,20 +187,20 @@ files += [
+@@ -187,20 +179,10 @@ files += [
    'src/neural/network_record.cc',
    'src/neural/network_rr.cc',
    'src/neural/network_trivial.cc',
@@ -54,36 +63,36 @@ index 49b60c1..f629fd1 100644
 -  'src/selfplay/game.cc',
 -  'src/selfplay/loop.cc',
 -  'src/selfplay/tournament.cc',
-+#  'src/neural/onnx/adapters.cc',
-+#  'src/neural/onnx/builder.cc',
-+#  'src/neural/onnx/converter.cc',
-+#  'src/selfplay/game.cc',
-+#  'src/selfplay/loop.cc',
-+#  'src/selfplay/tournament.cc',
    'src/syzygy/syzygy.cc',
 -  'src/trainingdata/reader.cc',
 -  'src/trainingdata/trainingdata.cc',
 -  'src/trainingdata/writer.cc',
-+#  'src/trainingdata/reader.cc',
-+#  'src/trainingdata/trainingdata.cc',
-+#  'src/trainingdata/writer.cc',
    'src/utils/commandline.cc',
    'src/utils/configfile.cc',
    'src/utils/esc_codes.cc',
 -  'src/utils/files.cc',
-+#  'src/utils/files.cc',
    'src/utils/histogram.cc',
    'src/utils/logging.cc',
    'src/utils/numa.cc',
-@@ -629,7 +627,7 @@ endif
-     # caused trouble (crashes or failed builds). Better safe than sorry.
-     deps += subproject('zlib').get_variable('zlib_dep')
-   else
+@@ -619,18 +601,6 @@ endif
+ #############################################################################
+ ## Dependencies
+ #############################################################################
+-  ## ~~~~
+-  ## zlib
+-  ## ~~~~
+-  # Pick latest from https://wrapdb.mesonbuild.com/zlib and put into
+-  # subprojects/zlib.wrap
+-  if host_machine.system() == 'windows'
+-    # In several cases where a zlib dependency was detected on windows, it
+-    # caused trouble (crashes or failed builds). Better safe than sorry.
+-    deps += subproject('zlib').get_variable('zlib_dep')
+-  else
 -    deps += dependency('zlib', fallback: ['zlib', 'zlib_dep'])
-+#    deps += dependency('zlib', fallback: ['zlib', 'zlib_dep'])
-   endif
+-  endif
  
    ## ~~~~~~~~
+   ## Profiler
 diff --git a/src/chess/pgn.h b/src/chess/pgn.h
 index 512d4c6..2588f11 100644
 --- a/src/chess/pgn.h
@@ -130,10 +139,19 @@ index 512d4c6..2588f11 100644
        // Only supposed to exist in the first line, but should not matter.
        if (line.substr(0,3) == "\xEF\xBB\xBF") line = line.substr(3);
 diff --git a/src/chess/uciloop.cc b/src/chess/uciloop.cc
-index ad76b25..6287d38 100644
+index ad76b25..56ed117 100644
 --- a/src/chess/uciloop.cc
 +++ b/src/chess/uciloop.cc
-@@ -145,6 +145,16 @@ void UciLoop::RunLoop() {
+@@ -36,6 +36,8 @@
+ #include <unordered_map>
+ #include <unordered_set>
+ #include <utility>
++#include <emscripten.h>
++#include <emscripten/threading.h>
+ 
+ #include "utils/exception.h"
+ #include "utils/logging.h"
+@@ -145,6 +147,16 @@ void UciLoop::RunLoop() {
    }
  }
  
@@ -150,6 +168,34 @@ index ad76b25..6287d38 100644
  bool UciLoop::DispatchCommand(
      const std::string& command,
      const std::unordered_map<std::string, std::string>& params) {
+@@ -218,13 +230,22 @@ void UciLoop::SendResponse(const std::string& response) {
+   SendResponses({response});
+ }
+ 
++EM_JS(void, zero_post, (const char *str), {
++  Module._zeroPort.postMessage(UTF8ToString(str));
++  _free(str);
++});
++
+ void UciLoop::SendResponses(const std::vector<std::string>& responses) {
+-  static std::mutex output_mutex;
+-  std::lock_guard<std::mutex> lock(output_mutex);
+-  for (auto& response : responses) {
+-    LOGFILE << "<< " << response;
+-    std::cout << response << std::endl;
++  std::string all;
++  for (auto it = responses.begin(); it != responses.end(); it++) {
++    LOGFILE << "<< " << *it;
++    all += *it;
++    if (std::next(it) != responses.end()) all += "\n";
+   }
++  char *buf = (char *)std::malloc(all.size() + 1);
++  std::copy(all.begin(), all.end(), buf);
++  buf[all.size()] = '\0';
++  emscripten_async_run_in_main_runtime_thread(EM_FUNC_SIG_VI, (void*)&zero_post, (void*)buf);
+ }
+ 
+ void UciLoop::SendId() {
 diff --git a/src/chess/uciloop.h b/src/chess/uciloop.h
 index bae8e3d..558d264 100644
 --- a/src/chess/uciloop.h
@@ -163,11 +209,108 @@ index bae8e3d..558d264 100644
    // Sends response to host.
    void SendResponse(const std::string& response);
    // Sends responses to host ensuring they are received as a block.
+diff --git a/src/engine.cc b/src/engine.cc
+index a632ebb..e08c1fb 100644
+--- a/src/engine.cc
++++ b/src/engine.cc
+@@ -33,6 +33,7 @@
+ 
+ #include "mcts/search.h"
+ #include "mcts/stoppers/factory.h"
++#include "neural/loader.h"
+ #include "utils/configfile.h"
+ #include "utils/logging.h"
+ 
+@@ -99,7 +100,6 @@ void EngineController::PopulateOptions(OptionsParser* options) {
+   options->Add<IntOption>(kNNCacheSizeId, 0, 999999999) = 2000000;
+   SearchParams::Populate(options);
+ 
+-  options->Add<StringOption>(kSyzygyTablebaseId);
+   // Add "Ponder" option to signal to GUIs that we support pondering.
+   // This option is currently not used by lc0 in any way.
+   options->Add<BoolOption>(kPonderId) = true;
+@@ -107,7 +107,6 @@ void EngineController::PopulateOptions(OptionsParser* options) {
+   options->Add<BoolOption>(kShowWDL) = false;
+   options->Add<BoolOption>(kShowMovesleft) = false;
+ 
+-  ConfigFile::PopulateOptions(options);
+   PopulateTimeManagementOptions(RunType::kUci, options);
+ 
+   options->Add<BoolOption>(kStrictUciTiming) = false;
+@@ -124,25 +123,13 @@ void EngineController::ResetMoveTimer() {
+ void EngineController::UpdateFromUciOptions() {
+   SharedLock lock(busy_mutex_);
+ 
+-  // Syzygy tablebases.
+-  std::string tb_paths = options_.Get<std::string>(kSyzygyTablebaseId);
+-  if (!tb_paths.empty() && tb_paths != tb_paths_) {
+-    syzygy_tb_ = std::make_unique<SyzygyTablebase>();
+-    CERR << "Loading Syzygy tablebases from " << tb_paths;
+-    if (!syzygy_tb_->init(tb_paths)) {
+-      CERR << "Failed to load Syzygy tablebases!";
+-      syzygy_tb_ = nullptr;
+-    } else {
+-      tb_paths_ = tb_paths;
+-    }
+-  }
+-
+   // Network.
+   const auto network_configuration =
+       NetworkFactory::BackendConfiguration(options_);
+-  if (network_configuration_ != network_configuration) {
+-    network_ = NetworkFactory::LoadNetwork(options_);
++  if (network_configuration_ != network_configuration || bufferedWeights_) {
++    network_ = NetworkFactory::LoadNetwork(options_, bufferedWeights_);
+     network_configuration_ = network_configuration;
++    bufferedWeights_.reset();
+   }
+ 
+   // Cache size.
+@@ -325,7 +312,7 @@ EngineLoop::EngineLoop()
+ }
+ 
+ void EngineLoop::RunLoop() {
+-  if (!ConfigFile::Init() || !options_.ProcessAllFlags()) return;
++  if (!options_.ProcessAllFlags()) return;
+   const auto options = options_.GetOptionsDict();
+   Logging::Get().SetFilename(options.Get<std::string>(kLogFileId));
+   if (options.Get<bool>(kPreload)) engine_.NewGame();
+@@ -345,6 +332,10 @@ void EngineLoop::CmdIsReady() {
+   SendResponse("readyok");
+ }
+ 
++void EngineLoop::SetWeightsBuffer(const char *buffer, size_t size) {
++  engine_.bufferedWeights_ = LoadWeightsFromBuffer(buffer, size);
++}
++
+ void EngineLoop::CmdSetOption(const std::string& name, const std::string& value,
+                               const std::string& context) {
+   options_.SetUciOption(name, value, context);
+diff --git a/src/engine.h b/src/engine.h
+index 9743679..08f964a 100644
+--- a/src/engine.h
++++ b/src/engine.h
+@@ -76,6 +76,7 @@ class EngineController {
+ 
+   Position ApplyPositionMoves();
+ 
++  std::optional<WeightsFile> bufferedWeights_;
+  private:
+   void UpdateFromUciOptions();
+ 
+@@ -120,6 +121,7 @@ class EngineLoop : public UciLoop {
+  public:
+   EngineLoop();
+ 
++  void SetWeightsBuffer(const char *buf, size_t len);
+   void RunLoop() override;
+   void CmdUci() override;
+   void CmdIsReady() override;
 diff --git a/src/main.cc b/src/main.cc
-index 4c8880d..5e70166 100644
+index 4c8880d..3266edf 100644
 --- a/src/main.cc
 +++ b/src/main.cc
-@@ -24,71 +24,33 @@
+@@ -24,71 +24,35 @@
    terms of the respective license agreement, the licensors of this
    Program grant you additional permission to convey the resulting work.
  */
@@ -197,17 +340,12 @@ index 4c8880d..5e70166 100644
 -       << " built " << __DATE__;
 +lczero::EngineLoop *loop = nullptr;
  
-+extern "C" {
-+  EMSCRIPTEN_KEEPALIVE void process_command(const char* utf8) {
-+    loop->ProcessCommand(utf8);
-+  }
+-  try {
+-    InitializeMagicBitboards();
++extern "C" EMSCRIPTEN_KEEPALIVE void process_command(const char* utf8) {
++  loop->ProcessCommand(utf8);
 +}
-+
-+EMSCRIPTEN_KEEPALIVE int main(int argc, const char** argv) {
-+  using namespace lczero;
-   try {
-     InitializeMagicBitboards();
--
+ 
 -    CommandLine::Init(argc, argv);
 -    CommandLine::RegisterMode("uci", "(default) Act as UCI engine");
 -    CommandLine::RegisterMode("selfplay", "Play games with itself");
@@ -219,7 +357,10 @@ index 4c8880d..5e70166 100644
 -                              "Convert ONNX network to Leela net.");
 -    CommandLine::RegisterMode("describenet",
 -                              "Shows details about the Leela network.");
--
++extern "C" EMSCRIPTEN_KEEPALIVE void set_weights(const char *buffer, size_t size) {
++  loop->SetWeightsBuffer(buffer, size);
++}
+ 
 -    if (CommandLine::ConsumeCommand("selfplay")) {
 -      // Selfplay mode.
 -      SelfPlayLoop loop;
@@ -245,6 +386,10 @@ index 4c8880d..5e70166 100644
 -      EngineLoop loop;
 -      loop.RunLoop();
 -    }
++EMSCRIPTEN_KEEPALIVE int main() {
++  using namespace lczero;
++  try {
++    InitializeMagicBitboards();
 +    loop = new EngineLoop();
    } catch (std::exception& e) {
      std::cerr << "Unhandled exception: " << e.what() << std::endl;
@@ -253,8 +398,139 @@ index 4c8880d..5e70166 100644
  }
 +
 +
+diff --git a/src/mcts/search.cc b/src/mcts/search.cc
+index 6fe8d1c..4267b3b 100644
+--- a/src/mcts/search.cc
++++ b/src/mcts/search.cc
+@@ -59,18 +59,6 @@ MoveList MakeRootMoveFilter(const MoveList& searchmoves,
+   if (!searchmoves.empty()) return searchmoves;
+   const auto& board = history.Last().GetBoard();
+   MoveList root_moves;
+-  if (!syzygy_tb || !board.castlings().no_legal_castle() ||
+-      (board.ours() | board.theirs()).count() > syzygy_tb->max_cardinality()) {
+-    return root_moves;
+-  }
+-  if (syzygy_tb->root_probe(
+-          history.Last(), fast_play || history.DidRepeatSinceLastZeroingMove(),
+-          &root_moves)) {
+-    *dtz_success = true;
+-    tb_hits->fetch_add(1, std::memory_order_acq_rel);
+-  } else if (syzygy_tb->root_probe_wdl(history.Last(), &root_moves)) {
+-    tb_hits->fetch_add(1, std::memory_order_acq_rel);
+-  }
+   return root_moves;
+ }
+ 
+@@ -1866,43 +1854,6 @@ void SearchWorker::ExtendNode(Node* node, int depth,
+                          Node::Terminal::TwoFold);
+       return;
+     }
+-
+-    // Neither by-position or by-rule termination, but maybe it's a TB position.
+-    if (search_->syzygy_tb_ && !search_->root_is_in_dtz_ &&
+-        board.castlings().no_legal_castle() &&
+-        history->Last().GetRule50Ply() == 0 &&
+-        (board.ours() | board.theirs()).count() <=
+-            search_->syzygy_tb_->max_cardinality()) {
+-      ProbeState state;
+-      const WDLScore wdl =
+-          search_->syzygy_tb_->probe_wdl(history->Last(), &state);
+-      // Only fail state means the WDL is wrong, probe_wdl may produce correct
+-      // result with a stat other than OK.
+-      if (state != FAIL) {
+-        // TB nodes don't have NN evaluation, assign M from parent node.
+-        float m = 0.0f;
+-        // Need a lock to access parent, in case MakeSolid is in progress.
+-        {
+-          SharedMutex::SharedLock lock(search_->nodes_mutex_);
+-          auto parent = node->GetParent();
+-          if (parent) {
+-            m = std::max(0.0f, parent->GetM() - 1.0f);
+-          }
+-        }
+-        // If the colors seem backwards, check the checkmate check above.
+-        if (wdl == WDL_WIN) {
+-          node->MakeTerminal(GameResult::BLACK_WON, m,
+-                             Node::Terminal::Tablebase);
+-        } else if (wdl == WDL_LOSS) {
+-          node->MakeTerminal(GameResult::WHITE_WON, m,
+-                             Node::Terminal::Tablebase);
+-        } else {  // Cursed wins and blessed losses count as draws.
+-          node->MakeTerminal(GameResult::DRAW, m, Node::Terminal::Tablebase);
+-        }
+-        search_->tb_hits_.fetch_add(1, std::memory_order_acq_rel);
+-        return;
+-      }
+-    }
+   }
+ 
+   // Add legal moves as edges of this node.
+diff --git a/src/mcts/stoppers/common.cc b/src/mcts/stoppers/common.cc
+index f969725..7c2664b 100644
+--- a/src/mcts/stoppers/common.cc
++++ b/src/mcts/stoppers/common.cc
+@@ -25,7 +25,7 @@
+   Program grant you additional permission to convey the resulting work.
+ */
+ 
+-#include "src/mcts/stoppers/common.h"
++#include "mcts/stoppers/common.h"
+ 
+ namespace lczero {
+ 
+diff --git a/src/neural/factory.cc b/src/neural/factory.cc
+index 03c69ef..8c9c17d 100644
+--- a/src/neural/factory.cc
++++ b/src/neural/factory.cc
+@@ -30,7 +30,6 @@
+ #include <algorithm>
+ 
+ #include "neural/loader.h"
+-#include "utils/commandline.h"
+ #include "utils/logging.h"
+ 
+ namespace lczero {
+@@ -110,21 +109,14 @@ bool NetworkFactory::BackendConfiguration::operator==(
+ }
+ 
+ std::unique_ptr<Network> NetworkFactory::LoadNetwork(
+-    const OptionsDict& options) {
++    const OptionsDict& options, const std::optional<WeightsFile>& bufferedWeights) {
+   std::string net_path = options.Get<std::string>(kWeightsId);
+   const std::string backend = options.Get<std::string>(kBackendId);
+   const std::string backend_options =
+       options.Get<std::string>(kBackendOptionsId);
+ 
+-  if (net_path == kAutoDiscover) {
+-    net_path = DiscoverWeightsFile();
+-  } else if (net_path == kEmbed) {
+-    net_path = CommandLine::BinaryName();
+-  } else {
+-    CERR << "Loading weights file from: " << net_path;
+-  }
+-  std::optional<WeightsFile> weights;
+-  if (!net_path.empty()) {
++  std::optional<WeightsFile> weights(std::move(bufferedWeights));
++  if (!weights && !net_path.empty()) {
+     weights = LoadWeightsFromFile(net_path);
+   }
+ 
+diff --git a/src/neural/factory.h b/src/neural/factory.h
+index 4448aa3..98ac02a 100644
+--- a/src/neural/factory.h
++++ b/src/neural/factory.h
+@@ -68,7 +68,8 @@ class NetworkFactory {
+ 
+   // Helper function to load the network from the options. Returns nullptr
+   // if no network options changed since the previous call.
+-  static std::unique_ptr<Network> LoadNetwork(const OptionsDict& options);
++  static std::unique_ptr<Network> LoadNetwork(const OptionsDict& options, 
++                                              const std::optional<WeightsFile>& weights);
+ 
+   // Parameter IDs.
+   static const OptionId kWeightsId;
 diff --git a/src/neural/loader.cc b/src/neural/loader.cc
-index 7f3ff3e..8e3003e 100644
+index 7f3ff3e..a4f3fd2 100644
 --- a/src/neural/loader.cc
 +++ b/src/neural/loader.cc
 @@ -27,8 +27,6 @@
@@ -266,7 +542,7 @@ index 7f3ff3e..8e3003e 100644
  #include <algorithm>
  #include <cassert>
  #include <cctype>
-@@ -52,92 +50,29 @@
+@@ -52,92 +50,22 @@
  
  namespace lczero {
  
@@ -316,14 +592,7 @@ index 7f3ff3e..8e3003e 100644
 -      buffer.resize(bytes_read);
 -      break;
 -    }
-+WeightsFile LoadWeightsFromFile(const std::string& filename) {
-+  std::ifstream is(filename, std::ios::binary);
-+  is.seekg(0, std::ios::end);
-+  std::string pb(is.tellg(), 0);
-+  is.seekg(0, std::ios::beg);
-+  is.read(&pb[0], pb.size());
-+  is.close();
-+
++WeightsFile ParseWeights(const std::string& pb) {
 +  if (pb.size() < 2) {
 +    throw Exception("Invalid weight file: too small.");
    }
@@ -376,7 +645,7 @@ index 7f3ff3e..8e3003e 100644
  
    if (net.magic() != kWeightMagic) {
      throw Exception("Invalid weight file: bad header.");
-@@ -151,8 +86,6 @@ WeightsFile ParseWeightsProto(const std::string& buffer) {
+@@ -151,8 +79,6 @@ WeightsFile ParseWeightsProto(const std::string& buffer) {
        GetVersionInt(net.min_version().major(), net.min_version().minor(),
                      net.min_version().patch());
  
@@ -385,13 +654,16 @@ index 7f3ff3e..8e3003e 100644
    // Weights files with this signature are also compatible.
    if (net_ver != 0x5c99973 && net_ver > lc0_ver) {
      throw Exception("Invalid weight file: lc0 version >= " + min_version +
-@@ -167,86 +100,7 @@ WeightsFile ParseWeightsProto(const std::string& buffer) {
+@@ -167,86 +93,21 @@ WeightsFile ParseWeightsProto(const std::string& buffer) {
    return net;
  }
  
 -}  // namespace
--
--WeightsFile LoadWeightsFromFile(const std::string& filename) {
++WeightsFile LoadWeightsFromBuffer(const char *buf, size_t sz) {
++  return ParseWeights(std::string(static_cast<const char *>(buf), sz));
++}
+ 
+ WeightsFile LoadWeightsFromFile(const std::string& filename) {
 -  FloatVectors vecs;
 -  auto buffer = DecompressGzip(filename);
 -
@@ -408,8 +680,15 @@ index 7f3ff3e..8e3003e 100644
 -  }
 -
 -  return ParseWeightsProto(buffer);
--}
--
++  std::ifstream is(filename, std::ios::binary);
++  is.seekg(0, std::ios::end);
++  std::string pb(is.tellg(), 0);
++  is.seekg(0, std::ios::beg);
++  is.read(&pb[0], pb.size());
++  is.close();
++  return ParseWeights(pb);
+ }
+ 
  std::string DiscoverWeightsFile() {
 -  const int kMinFileSize = 500000;  // 500 KB
 -
@@ -472,6 +751,31 @@ index 7f3ff3e..8e3003e 100644
    return {};
  }
  
+diff --git a/src/neural/loader.h b/src/neural/loader.h
+index 279e87e..0ac2480 100644
+--- a/src/neural/loader.h
++++ b/src/neural/loader.h
+@@ -40,6 +40,7 @@ using FloatVectors = std::vector<FloatVector>;
+ 
+ using WeightsFile = pblczero::Net;
+ 
++WeightsFile LoadWeightsFromBuffer(const char* buf, size_t sz);
+ // Read weights file and fill the weights structure.
+ WeightsFile LoadWeightsFromFile(const std::string& filename);
+ 
+diff --git a/src/selfplay/tournament.cc b/src/selfplay/tournament.cc
+index cd9b7f7..d94629e 100644
+--- a/src/selfplay/tournament.cc
++++ b/src/selfplay/tournament.cc
+@@ -181,7 +181,7 @@ SelfPlayTournament::SelfPlayTournament(
+       const auto& opts = options.GetSubdict(name).GetSubdict(color);
+       const auto config = NetworkFactory::BackendConfiguration(opts);
+       if (networks_.find(config) == networks_.end()) {
+-        networks_.emplace(config, NetworkFactory::LoadNetwork(opts));
++        networks_.emplace(config, NetworkFactory::LoadNetwork(opts, nullptr));
+       }
+     }
+   }
 diff --git a/src/utils/exception.h b/src/utils/exception.h
 index 7602d5a..bdec04e 100644
 --- a/src/utils/exception.h
@@ -541,6 +845,171 @@ index a9508de..e2b8a85 100644
 +#define COUT ::lczero::StdoutLogMessage(__FILE__, __LINE__)
 +#define EXCEPTION(x) ::lczero::ExceptionMessage(__FILE__, __LINE__, x)
 \ No newline at end of file
+diff --git a/src/utils/optionsparser.cc b/src/utils/optionsparser.cc
+index e725348..78442cb 100644
+--- a/src/utils/optionsparser.cc
++++ b/src/utils/optionsparser.cc
+@@ -31,8 +31,6 @@
+ #include <iostream>
+ #include <sstream>
+ 
+-#include "utils/commandline.h"
+-#include "utils/configfile.h"
+ #include "utils/logging.h"
+ #include "utils/string.h"
+ 
+@@ -123,87 +121,10 @@ const OptionsDict& OptionsParser::GetOptionsDict(const std::string& context) {
+ }
+ 
+ bool OptionsParser::ProcessAllFlags() {
+-  return ProcessFlags(ConfigFile::Arguments()) &&
+-         ProcessFlags(CommandLine::Arguments());
++  return true;
+ }
+ 
+ bool OptionsParser::ProcessFlags(const std::vector<std::string>& args) {
+-  auto show_help = false;
+-  if (CommandLine::BinaryName().find("pro") != std::string::npos) {
+-    ShowHidden();
+-  }
+-  for (auto iter = args.begin(), end = args.end(); iter != end; ++iter) {
+-    std::string param = *iter;
+-    if (param == "--show-hidden") {
+-      ShowHidden();
+-      continue;
+-    }
+-    if (param == "-h" || param == "--help") {
+-      // Set a flag so that --show-hidden after --help works.
+-      show_help = true;
+-      continue;
+-    }
+-
+-    if (param.substr(0, 2) == "--") {
+-      std::string context;
+-      param = param.substr(2);
+-      std::string value;
+-      auto pos = param.find('=');
+-      if (pos != std::string::npos) {
+-        value = param.substr(pos + 1);
+-        param = param.substr(0, pos);
+-      }
+-      pos = param.rfind('.');
+-      if (pos != std::string::npos) {
+-        context = param.substr(0, pos);
+-        param = param.substr(pos + 1);
+-      }
+-      bool processed = false;
+-      Option* option = FindOptionByLongFlag(param);
+-      if (option &&
+-          option->ProcessLongFlag(param, value, GetMutableOptions(context))) {
+-        processed = true;
+-      }
+-      if (!processed) {
+-        CERR << "Unknown command line flag: " << *iter << ".";
+-        CERR << "For help run:\n  " << CommandLine::BinaryName() << " --help";
+-        return false;
+-      }
+-      continue;
+-    }
+-    if (param.size() == 2 && param[0] == '-') {
+-      std::string value;
+-      bool processed = false;
+-      if (iter + 1 != end) {
+-        value = *(iter + 1);
+-      }
+-      for (auto& option : options_) {
+-        if (option->ProcessShortFlag(param[1], GetMutableOptions())) {
+-          processed = true;
+-          break;
+-        } else if (option->ProcessShortFlagWithValue(param[1], value,
+-                                                     GetMutableOptions())) {
+-          if (!value.empty()) ++iter;
+-          processed = true;
+-          break;
+-        }
+-      }
+-      if (!processed) {
+-        CERR << "Unknown command line flag: " << *iter << ".";
+-        CERR << "For help run:\n  " << CommandLine::BinaryName() << " --help";
+-        return false;
+-      }
+-      continue;
+-    }
+-
+-    CERR << "Unknown command line argument: " << *iter << ".\n";
+-    CERR << "For help run:\n  " << CommandLine::BinaryName() << " --help";
+-    return false;
+-  }
+-  if (show_help) {
+-    ShowHelp();
+-    return false;
+-  }
+   return true;
+ }
+ 
+@@ -262,31 +183,6 @@ std ::string FormatFlag(char short_flag, const std::string& long_flag,
+ }  // namespace
+ 
+ void OptionsParser::ShowHelp() const {
+-  std::cout << "Usage: " << CommandLine::BinaryName() << " [<mode>] [flags...]"
+-            << std::endl;
+-
+-  std::cout << "\nAvailable modes. A help for a mode: "
+-            << CommandLine::BinaryName() << " <mode> --help\n";
+-  for (const auto& mode : CommandLine::GetModes()) {
+-    std::cout << "  " << std::setw(10) << std::left << mode.first << " "
+-              << mode.second << std::endl;
+-  }
+-
+-  std::cout << "\nAllowed command line flags for current mode:\n";
+-  std::cout << FormatFlag('h', "help", "Show help and exit.");
+-  std::cout << FormatFlag('\0', "show-hidden",
+-                          "Show hidden options. Use with --help.");
+-  for (const auto& option : options_) {
+-    if (!option->hidden_) std::cout << option->GetHelp(defaults_);
+-  }
+-
+-  auto contexts = values_.ListSubdicts();
+-  if (!contexts.empty()) {
+-    std::cout << "\nFlags can be defined per context (one of: "
+-              << StrJoin(contexts, ", ") << "), for example:\n";
+-    std::cout << "       --" << contexts[0] << '.'
+-              << options_.back()->GetLongFlag() << "=(value)\n";
+-  }
+ }
+ 
+ void OptionsParser::ShowHidden() const {
+diff --git a/src/utils/weights_adapter.cc b/src/utils/weights_adapter.cc
+index 2a5d196..99ed832 100644
+--- a/src/utils/weights_adapter.cc
++++ b/src/utils/weights_adapter.cc
+@@ -25,7 +25,7 @@
+   Program grant you additional permission to convey the resulting work.
+ */
+ 
+-#include "src/utils/weights_adapter.h"
++#include "utils/weights_adapter.h"
+ 
+ namespace lczero {
+ float LayerAdapter::Iterator::ExtractValue(const uint16_t* ptr,
+diff --git a/src/version.h b/src/version.h
+index 53ab769..b38e731 100644
+--- a/src/version.h
++++ b/src/version.h
+@@ -31,7 +31,6 @@
+ 
+ #include <string>
+ #include "version.inc"
+-#include "build_id.h"
+ 
+ std::uint32_t GetVersionInt(int major = LC0_VERSION_MAJOR,
+                             int minor = LC0_VERSION_MINOR,
+@@ -41,4 +40,4 @@ std::string GetVersionStr(int major = LC0_VERSION_MAJOR,
+                           int minor = LC0_VERSION_MINOR,
+                           int patch = LC0_VERSION_PATCH,
+                           const std::string& postfix = LC0_VERSION_POSTFIX,
+-                          const std::string& build_id = BUILD_IDENTIFIER);
++                          const std::string& build_id = "zerofish");
 diff --git a/subprojects/gtest.wrap b/subprojects/gtest.wrap
 deleted file mode 100644
 index ca5d699..0000000

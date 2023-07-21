@@ -1,20 +1,23 @@
 {
-  "name": "lc0-browser",
-  "version": "1.0.0",
+  "name": "zerofish",
+  "version": "0.0.1",
   "private": true,
-  "author": "Thibault Duplessis",
+  "author": "Lichess",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "dependencies": {
-    "@types/node": "^20.4.1",
+    "@types/node": "^20.4.2",
     "@types/web": "^0.0.84",
     "@types/emscripten": "^1.39.6",
-    "typescript": "^5.1.5"
+    "esbuild": "^0.18.4",
+    "typescript": "^5.1.6"
   },
   "scripts": {
-    "test": "tsc && cd dist && node ./test/node",
+    "node": "wasm/build.sh node && tsc && node dist/test/node",
     "wasm": "wasm/build.sh",
-    "clean": "rm -rf dist && if [ -d wasm/lc0 ]; then git -C wasm/lc0 clean -fdx; fi && if [ -d Stockfish ]; then git -C Stockfish clean -fdx; fi"
+    "web": "pnpm wasm && tsc",
+    "test": "pnpm web && cp dist/zerofish* ../lila-local/public/compiled",
+    "clean": "rm wasm/Makefile -rf dist && if [ -d wasm/lc0 ]; then git -C wasm/lc0 clean -fdx -e *.pb.h; fi && if [ -d wasm/Stockfish ]; then git -C wasm/Stockfish clean -fdx; fi"
   },
   "keywords": [ ]
 }

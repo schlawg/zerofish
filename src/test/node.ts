@@ -1,29 +1,25 @@
 import * as readline from 'node:readline';
-// @ts-ignore
-import createLc0 from '../lc0.js';
-// @ts-ignore
-import createStockfish from '../stockfish.js';
+import * as fs from 'node:fs';
 
-const lc0 = await createLc0();
-const stockfish = await createStockfish();
+// @ts-ignore
+import createZerofish from '../zerofishWasm.js';
 
+const zf = await createZerofish();
+
+console.log('Syntax: <fish|zero> <uci-command> <args>');
 readline
   .createInterface({
     input: process.stdin,
     output: process.stdout,
     terminal: false,
   })
-  .on('line', (line: string) => stockfish.uci(line));
-lc0.listenPort.onmessage = (e: MessageEvent) => {
-  console.log('lc0', e.data);
+  .on('line', (line: string) => {
+    if (line.startsWith('fish ')) zf.fish(line.slice(5));
+    else if (line.startsWith('zero')) zf.zero(line.slice(5));
+  });
+zf.listenFish.onmessage = (e: MessageEvent) => {
+  console.log('fish: ', e.data);
 };
-stockfish.listenPort.onmessage = (e: MessageEvent) => {
-  console.log('stockfish', e.data);
+zf.listenZero.onmessage = (e: MessageEvent) => {
+  console.log('zero: ', e.data);
 };
-console.log('ready... ');
-
-lc0.uci('uci');
-lc0.uci('isready');
-lc0.uci('setoption name Threads value 1');
-lc0.uci('setoption name WeightsFile value weights.pb');
-lc0.uci('position fen r1bqkb1r/pppppppp/4nQ2/4n3/6B1/8/PPPPPPPP/RNB1KBNR w KQkq - 0 1');

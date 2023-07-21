@@ -202,61 +202,88 @@ index b9d7231d..2fe457eb 100644
  } // namespace Eval
  
  } // namespace Stockfish
-diff --git a/src/main.cpp b/src/main.cpp
-index c40e0fa3..f8db7ab3 100644
---- a/src/main.cpp
-+++ b/src/main.cpp
-@@ -17,37 +17,41 @@
- */
- 
- #include <iostream>
+diff --git a/src/misc.cpp b/src/misc.cpp
+index bbfa4061..5153dc6e 100644
+--- a/src/misc.cpp
++++ b/src/misc.cpp
+@@ -52,6 +52,8 @@ using fun8_t = bool(*)(HANDLE, BOOL, PTOKEN_PRIVILEGES, DWORD, PTOKEN_PRIVILEGES
+ #include <sstream>
+ #include <string_view>
+ #include <vector>
 +#include <emscripten.h>
++#include <emscripten/threading.h>
  
- #include "bitboard.h"
- #include "endgame.h"
- #include "position.h"
- #include "psqt.h"
- #include "search.h"
--#include "syzygy/tbprobe.h"
- #include "thread.h"
- #include "tt.h"
- #include "uci.h"
- 
- using namespace Stockfish;
- 
--int main(int argc, char* argv[]) {
-+Position *pos = nullptr;
-+StateListPtr states(new std::deque<StateInfo>(1));
-+
-+EMSCRIPTEN_KEEPALIVE int main(int argc, char* argv[]) {
- 
-   std::cout << engine_info() << std::endl;
- 
-   CommandLine::init(argc, argv);
-   UCI::init(Options);
--  Tune::init();
-   PSQT::init();
-   Bitboards::init();
-   Position::init();
-   Bitbases::init();
-   Endgames::init();
--  Threads.set(size_t(Options["Threads"]));
-+  Threads.set(7);
-   Search::clear(); // After threads are up
--  Eval::NNUE::init();
--
--  UCI::loop(argc, argv);
--
--  Threads.set(0);
-+  pos = new Position();
-+  pos->set("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false, &states->back(), Threads.main());
-+  // for "quit" Threads.set(0);
-   return 0;
+ #if defined(__linux__) && !defined(__ANDROID__)
+ #include <stdlib.h>
+@@ -391,20 +393,26 @@ void dbg_print() {
+         }
  }
-+
-+extern "C" EMSCRIPTEN_KEEPALIVE void process_command(const char* utf8) {
-+  UCI::process_command(utf8, *pos, states);
-+}
+ 
++EM_JS(void, fish_post, (const char *str), {
++  Module._fishPort.postMessage(UTF8ToString(str));
++  _free(str);
++});
+ 
+-/// Used to serialize access to std::cout to avoid multiple threads writing at
+-/// the same time.
+-
+-std::ostream& operator<<(std::ostream& os, SyncCout sc) {
++std::ostream& operator<<(std::ostream& os, FishCoutCommand cmd) {
+ 
+   static std::mutex m;
+-
+-  if (sc == IO_LOCK)
+-      m.lock();
+-
+-  if (sc == IO_UNLOCK)
+-      m.unlock();
+-
++  
++  if (cmd == FishCoutCommand::ACQUIRE) m.lock();
++  if (cmd == FishCoutCommand::FLUSH) {
++    string response = fish_cout.str();
++    fish_cout.str("");
++    fish_cout.clear();
++    m.unlock();
++    char *buf = (char *)std::malloc(response.size() + 1);
++    std::copy(response.begin(), response.end(), buf);
++    buf[response.size()] = '\0';
++    emscripten_async_run_in_main_runtime_thread(EM_FUNC_SIG_VI, (void*)&fish_post, (void*)buf);
++  }
+   return os;
+ }
+ 
+diff --git a/src/misc.h b/src/misc.h
+index 69d470c2..0f1795ae 100644
+--- a/src/misc.h
++++ b/src/misc.h
+@@ -22,6 +22,7 @@
+ #include <cassert>
+ #include <chrono>
+ #include <ostream>
++#include <sstream>
+ #include <string>
+ #include <vector>
+ #include <cstdint>
+@@ -63,13 +64,12 @@ private:
+   std::vector<Entry> table = std::vector<Entry>(Size); // Allocate on the heap
+ };
+ 
++enum FishCoutCommand { ACQUIRE, FLUSH };
++std::ostream& operator<<(std::ostream&, FishCoutCommand);
++inline std::stringstream fish_cout;
+ 
+-enum SyncCout { IO_LOCK, IO_UNLOCK };
+-std::ostream& operator<<(std::ostream&, SyncCout);
+-
+-#define sync_cout std::cout << IO_LOCK
+-#define sync_endl std::endl << IO_UNLOCK
+-
++#define sync_cout fish_cout << FishCoutCommand::ACQUIRE
++#define sync_endl FishCoutCommand::FLUSH
+ 
+ // align_ptr_up() : get the first aligned element of an array.
+ // ptr must point to an array of size at least `sizeof(T) * N + alignment` bytes,
 diff --git a/src/position.cpp b/src/position.cpp
 index 2a9d798f..d3e446d8 100644
 --- a/src/position.cpp
@@ -388,7 +415,7 @@ index 2a9d798f..d3e446d8 100644
    {
        st->key ^= Zobrist::enpassant[file_of(st->epSquare)];
 diff --git a/src/position.h b/src/position.h
-index 2e6014db..bc0bf5a8 100644
+index 2e6014db..0c9fdeed 100644
 --- a/src/position.h
 +++ b/src/position.h
 @@ -29,8 +29,6 @@
@@ -411,16 +438,17 @@ index 2e6014db..bc0bf5a8 100644
  };
  
  
-@@ -171,7 +165,7 @@ public:
+@@ -170,9 +164,6 @@ public:
+   bool pos_is_ok() const;
    void flip();
  
-   // Used by NNUE
+-  // Used by NNUE
 -  StateInfo* state() const;
-+  //StateInfo* state() const;
- 
+-
    void put_piece(Piece pc, Square s);
    void remove_piece(Square s);
-@@ -440,11 +434,6 @@ inline void Position::do_move(Move m, StateInfo& newSt) {
+ 
+@@ -440,11 +431,6 @@ inline void Position::do_move(Move m, StateInfo& newSt) {
    do_move(m, newSt, gives_check(m));
  }
  
@@ -433,20 +461,19 @@ index 2e6014db..bc0bf5a8 100644
  
  #endif // #ifndef POSITION_H_INCLUDED
 diff --git a/src/search.cpp b/src/search.cpp
-index 740ad71e..92c47edc 100644
+index 740ad71e..1737f8bd 100644
 --- a/src/search.cpp
 +++ b/src/search.cpp
-@@ -33,8 +33,7 @@
+@@ -33,8 +33,6 @@
  #include "timeman.h"
  #include "tt.h"
  #include "uci.h"
 -#include "syzygy/tbprobe.h"
 -#include "nnue/evaluate_nnue.h"
-+//#include "syzygy/tbprobe.h"
  
  namespace Stockfish {
  
-@@ -43,16 +42,6 @@ namespace Search {
+@@ -43,16 +41,6 @@ namespace Search {
    LimitsType Limits;
  }
  
@@ -463,7 +490,7 @@ index 740ad71e..92c47edc 100644
  using std::string;
  using Eval::evaluate;
  using namespace Search;
-@@ -132,7 +121,6 @@ namespace {
+@@ -132,7 +120,6 @@ namespace {
    uint64_t perft(Position& pos, Depth depth) {
  
      StateInfo st;
@@ -471,7 +498,7 @@ index 740ad71e..92c47edc 100644
  
      uint64_t cnt, nodes = 0;
      const bool leaf = (depth == 2);
-@@ -175,7 +163,6 @@ void Search::clear() {
+@@ -175,7 +162,6 @@ void Search::clear() {
    Time.availableNodes = 0;
    TT.clear();
    Threads.clear();
@@ -479,7 +506,7 @@ index 740ad71e..92c47edc 100644
  }
  
  
-@@ -195,8 +182,6 @@ void MainThread::search() {
+@@ -195,8 +181,6 @@ void MainThread::search() {
    Time.init(Limits, us, rootPos.game_ply());
    TT.new_search();
  
@@ -488,7 +515,19 @@ index 740ad71e..92c47edc 100644
    if (rootMoves.empty())
    {
        rootMoves.emplace_back(MOVE_NONE);
-@@ -538,7 +523,6 @@ namespace {
+@@ -250,9 +234,9 @@ void MainThread::search() {
+   sync_cout << "bestmove " << UCI::move(bestThread->rootMoves[0].pv[0], rootPos.is_chess960());
+ 
+   if (bestThread->rootMoves[0].pv.size() > 1 || bestThread->rootMoves[0].extract_ponder_from_tt(rootPos))
+-      std::cout << " ponder " << UCI::move(bestThread->rootMoves[0].pv[1], rootPos.is_chess960());
++      fish_cout << " ponder " << UCI::move(bestThread->rootMoves[0].pv[1], rootPos.is_chess960());
+ 
+-  std::cout << sync_endl;
++  fish_cout << sync_endl;
+ }
+ 
+ 
+@@ -538,7 +522,6 @@ namespace {
  
      Move pv[MAX_PLY+1], capturesSearched[32], quietsSearched[64];
      StateInfo st;
@@ -496,7 +535,7 @@ index 740ad71e..92c47edc 100644
  
      TTEntry* tte;
      Key posKey;
-@@ -648,57 +632,6 @@ namespace {
+@@ -648,57 +631,6 @@ namespace {
              return ttValue;
      }
  
@@ -554,7 +593,7 @@ index 740ad71e..92c47edc 100644
  
      CapturePieceToHistory& captureHistory = thisThread->captureHistory;
  
-@@ -714,7 +647,6 @@ namespace {
+@@ -714,7 +646,6 @@ namespace {
      else if (excludedMove)
      {
          // Providing the hint that this node's accumulator will be used often brings significant Elo gain (13 Elo)
@@ -562,7 +601,7 @@ index 740ad71e..92c47edc 100644
          eval = ss->staticEval;
      }
      else if (ss->ttHit)
-@@ -723,8 +655,6 @@ namespace {
+@@ -723,8 +654,6 @@ namespace {
          ss->staticEval = eval = tte->eval();
          if (eval == VALUE_NONE)
              ss->staticEval = eval = evaluate(pos);
@@ -571,7 +610,7 @@ index 740ad71e..92c47edc 100644
  
          // ttValue can be used as a better position evaluation (~7 Elo)
          if (    ttValue != VALUE_NONE
-@@ -885,8 +815,6 @@ namespace {
+@@ -885,8 +814,6 @@ namespace {
                      return value;
                  }
              }
@@ -580,7 +619,7 @@ index 740ad71e..92c47edc 100644
      }
  
  moves_loop: // When in check, search starts here
-@@ -1411,7 +1339,6 @@ moves_loop: // When in check, search starts here
+@@ -1411,7 +1338,6 @@ moves_loop: // When in check, search starts here
  
      Move pv[MAX_PLY+1];
      StateInfo st;
@@ -588,7 +627,7 @@ index 740ad71e..92c47edc 100644
  
      TTEntry* tte;
      Key posKey;
-@@ -1859,7 +1786,7 @@ string UCI::pv(const Position& pos, Depth depth) {
+@@ -1859,7 +1785,7 @@ string UCI::pv(const Position& pos, Depth depth) {
    size_t pvIdx = pos.this_thread()->pvIdx;
    size_t multiPV = std::min((size_t)Options["MultiPV"], rootMoves.size());
    uint64_t nodesSearched = Threads.nodes_searched();
@@ -597,16 +636,26 @@ index 740ad71e..92c47edc 100644
  
    for (size_t i = 0; i < multiPV; ++i)
    {
-@@ -1874,7 +1801,7 @@ string UCI::pv(const Position& pos, Depth depth) {
+@@ -1874,9 +1800,6 @@ string UCI::pv(const Position& pos, Depth depth) {
        if (v == -VALUE_INFINITE)
            v = VALUE_ZERO;
  
 -      bool tb = TB::RootInTB && abs(v) < VALUE_MATE_IN_MAX_PLY;
-+      bool tb = false;
-       v = tb ? rootMoves[i].tbScore : v;
- 
+-      v = tb ? rootMoves[i].tbScore : v;
+-
        if (ss.rdbuf()->in_avail()) // Not at first line
-@@ -1915,7 +1842,6 @@ string UCI::pv(const Position& pos, Depth depth) {
+           ss << "\n";
+ 
+@@ -1889,7 +1812,7 @@ string UCI::pv(const Position& pos, Depth depth) {
+       if (Options["UCI_ShowWDL"])
+           ss << UCI::wdl(v, pos.game_ply());
+ 
+-      if (i == pvIdx && !tb && updated) // tablebase- and previous-scores are exact
++      if (i == pvIdx && updated) // tablebase- and previous-scores are exact
+          ss << (rootMoves[i].scoreLowerbound ? " lowerbound" : (rootMoves[i].scoreUpperbound ? " upperbound" : ""));
+ 
+       ss << " nodes "    << nodesSearched
+@@ -1915,7 +1838,6 @@ string UCI::pv(const Position& pos, Depth depth) {
  bool RootMove::extract_ponder_from_tt(Position& pos) {
  
      StateInfo st;
@@ -614,7 +663,7 @@ index 740ad71e..92c47edc 100644
  
      bool ttHit;
  
-@@ -1938,51 +1864,5 @@ bool RootMove::extract_ponder_from_tt(Position& pos) {
+@@ -1938,51 +1860,5 @@ bool RootMove::extract_ponder_from_tt(Position& pos) {
      return pv.size() > 1;
  }
  
@@ -667,18 +716,10 @@ index 740ad71e..92c47edc 100644
  
  } // namespace Stockfish
 diff --git a/src/thread.cpp b/src/thread.cpp
-index c680393e..ad102c88 100644
+index c680393e..ab56fbc6 100644
 --- a/src/thread.cpp
 +++ b/src/thread.cpp
-@@ -23,7 +23,6 @@
- #include "search.h"
- #include "thread.h"
- #include "uci.h"
--#include "syzygy/tbprobe.h"
- #include "tt.h"
- 
- namespace Stockfish {
-@@ -182,9 +181,6 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states,
+@@ -182,9 +182,6 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states,
            || std::count(limits.searchmoves.begin(), limits.searchmoves.end(), m))
            rootMoves.emplace_back(m);
  
@@ -689,15 +730,15 @@ index c680393e..ad102c88 100644
    // and call 'go' again without setting a new position states.get() == nullptr.
    assert(states.get() || setupStates.get());
 diff --git a/src/types.h b/src/types.h
-index 06b0a059..decf2be7 100644
+index 06b0a059..afd366fc 100644
 --- a/src/types.h
 +++ b/src/types.h
-@@ -488,4 +488,4 @@ constexpr Key make_key(uint64_t seed) {
+@@ -487,5 +487,3 @@ constexpr Key make_key(uint64_t seed) {
+ } // namespace Stockfish
  
  #endif // #ifndef TYPES_H_INCLUDED
- 
+-
 -#include "tune.h" // Global visibility to tuning setup
-+//#include "tune.h" // Global visibility to tuning setup
 diff --git a/src/uci.cpp b/src/uci.cpp
 index ed16f24c..20396de3 100644
 --- a/src/uci.cpp

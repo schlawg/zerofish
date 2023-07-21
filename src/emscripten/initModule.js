@@ -1,22 +1,35 @@
-const coutChannel = new MessageChannel();
+const fishChannel = new MessageChannel();
+const zeroChannel = new MessageChannel();
 
-Module.listenPort = coutChannel.port1;
-Module.sendPort = coutChannel.port2;
+Module.listenFish = fishChannel.port1; // attach javascript listener here
+Module.listenZero = zeroChannel.port1; // attach javascript listener here
 
-Module.uci = cmd => {
+Module._fishPort = fishChannel.port2; // used by c++
+Module._zeroPort = zeroChannel.port2; // used by c++
+
+Module.zero = cmd => Module.uci(cmd, false);
+Module.fish = cmd => Module.uci(cmd, true);
+
+Module.uci = (cmd, isFish) => {
   const utf8 = stringToNewUTF8(cmd);
   try {
-    _process_command(utf8);
+    _uci(utf8, isFish);
   } catch (e) {
     console.error(e);
-  } finally {
-    _free(utf8);
   }
+  _free(utf8);
 };
 
-Module.print = cout => Module.sendPort.postMessage(cout);
-Module.printErr = cerr => console.info(cerr);
-Module.exception = x => {
+Module.setZero = (w /*: ArrayBuffer*/) => {
+  const p = Module._malloc(w.byteLength);
+  Module.HEAP8.set(new Int8Array(w), p);
+  _set_weights(p, w.byteLength);
+  Module._free(p);
+};
+
+Module.print = cout => console.info(cout);
+Module.printErr = cerr => console.warn(cerr);
+Module._exception = x => {
   console.error(x);
-  // do something exceptiony here since we can't catch these
+  // do something exceptional here since the emscripted c++ can't catch these.
 };
