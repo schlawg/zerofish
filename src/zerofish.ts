@@ -14,7 +14,7 @@ export interface Zerofish {
   stop: () => void;
 }
 
-export async function initModule({ urlBase } = { urlBase: '.' }): Promise<Zerofish> {
+export default async function initModule({ urlBase } = { urlBase: '.' }): Promise<Zerofish> {
   //@ts-ignore
   const asset = await import(`${urlBase}/zerofishEngine.js`);
   const wasm = await asset.default();

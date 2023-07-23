@@ -4,6 +4,7 @@
   "author": "T-bone Duplexus",
   "license": "AGPL-3.0-or-later",
   "type": "module",
+  "main": "dist/zerofish.js",
   "dependencies": {
     "@types/node": "^20.4.2",
     "@types/web": "^0.0.84",
