@@ -2,7 +2,7 @@
   "name": "zerofish",
   "version": "0.0.1",
   "private": true,
-  "author": "Lichess",
+  "author": "T-bone Duplexus",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "dependencies": {
@@ -19,5 +19,11 @@
     "test": "pnpm web && cp dist/zerofish* ../lila-local/public/compiled",
     "clean": "rm wasm/Makefile -rf dist && if [ -d wasm/lc0 ]; then git -C wasm/lc0 clean -fdx -e *.pb.h; fi && if [ -d wasm/Stockfish ]; then git -C wasm/Stockfish clean -fdx; fi"
   },
-  "keywords": [ ]
+  "files": [
+    "dist/zerofish.d.ts",
+    "dist/zerofish.js",
+    "dist/zerofishEngine.wasm",
+    "dist/zerofishEngine.js",
+    "dist/zerofishEngine.worker.js"
+  ]
 }
