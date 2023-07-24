@@ -32,6 +32,7 @@ function main() {
   LD_FLAGS=(
     "${CXX_FLAGS[@]}"
     --pre-js=${LOCAL+../src/emscripten/}initModule.js
+    ${DEBUG+"--source-map-embed --source-map-embed-sources"} 
     -sEXPORTED_FUNCTIONS=['_free','_malloc','_main']
     -sINITIAL_MEMORY=512MB
     -sSTACK_SIZE=512KB
@@ -40,7 +41,7 @@ function main() {
     -sEXPORTED_RUNTIME_METHODS=[stringToNewUTF8]
     -sEXPORT_NAME=zerofish
     -sENVIRONMENT=$ENVIRONMENT
-    -sPTHREAD_POOL_SIZE=9
+    -sPTHREAD_POOL_SIZE=16
   )
   SF_SOURCES=(
     bitbase.cpp bitboard.cpp endgame.cpp evaluate.cpp material.cpp misc.cpp movegen.cpp
@@ -121,7 +122,7 @@ function setVariablesFromArgs() {
   while test $# -gt 0; do
     if [ "$1" == "debug" ]; then
       DEBUG=true
-      OPT_FLAGS=(-O0 -DDEBUG -sASSERTIONS -g3 -gsource-map --source-map-embed --source-map-embed-sources -sSAFE_HEAP -sNO_DISABLE_EXCEPTION_CATCHING)
+      OPT_FLAGS=(-O0 -DDEBUG -sASSERTIONS -g3 -gsource-map -sSAFE_HEAP -sNO_DISABLE_EXCEPTION_CATCHING)
     elif [ "$1" == "docker" ]; then
       unset LOCAL
     elif [ "$1" == "force" ]; then
