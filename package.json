@@ -13,7 +13,7 @@
     "typescript": "^5.1.6"
   },
   "scripts": {
-    "node": "wasm/build.sh node docker && tsc && node dist/test/node",
+    "node": "tsc && node dist/test/node",
     "wasm": "wasm/build.sh docker",
     "web": "pnpm wasm && tsc",
     "test": "pnpm web && cp dist/zerofish* ../lila-local/public/compiled",

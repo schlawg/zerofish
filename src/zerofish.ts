@@ -12,27 +12,38 @@ export interface Zerofish {
   goZero: (fen: string) => Promise<string>;
   goFish: (fen: string, opts: SearchOpts) => Promise<PV[]>;
   stop: () => void;
+  reset: () => void;
 }
 
 export default async function initModule({ urlBase } = { urlBase: '.' }): Promise<Zerofish> {
   //@ts-ignore
   const asset = await import(`${urlBase}/zerofishEngine.js`);
   const wasm = await asset.default();
-  console.log(wasm);
+  let gotWeights = false;
 
   return {
-    setZeroWeights: (weights: Uint8Array) => wasm.setZeroWeights(weights),
+    setZeroWeights: (weights: Uint8Array) => {
+      wasm.setZeroWeights(weights);
+      gotWeights = true;
+    },
     goZero: (fen: string) =>
       new Promise<string>((resolve, reject) => {
+        if (!gotWeights) return reject('unitialized');
         wasm.listenZero.onmessage = (e: MessageEvent) => {
-          if (e.data.startsWith('bestmove')) resolve(e.data.split(' ')[1]);
-          else reject(e.data);
+          if (!e.data.startsWith('bestmove')) return;
+          wasm.listenZero.onmessage = null;
+          resolve(e.data.split(' ')[1]);
         };
-        wasm.zero(`position fen ${fen}\ngo nodes 1`);
+        wasm.zero(`position fen ${fen}`);
+        wasm.zero(`go nodes 1`);
       }),
     stop: () => {
-      wasm.zero('stop');
+      if (gotWeights) wasm.zero('stop');
       wasm.fish('stop');
+    },
+    reset: () => {
+      if (gotWeights) wasm.zero('ucinewgame');
+      wasm.fish('ucinewgame');
     },
     goFish: (fen: string, opts: SearchOpts = {}) =>
       new Promise<PV[]>((resolve /*, reject*/) => {
