@@ -41,9 +41,12 @@ export default async function initModule({ urlBase } = { urlBase: '.' }): Promis
       if (gotWeights) wasm.zero('stop');
       wasm.fish('stop');
     },
-    reset: () => {
-      if (gotWeights) wasm.zero('ucinewgame');
+    reset: (fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') => {
+      wasm.fish(`position fen ${fen}`);
       wasm.fish('ucinewgame');
+      if (!gotWeights) return;
+      wasm.zero(`position fen ${fen}`);
+      wasm.zero('ucinewgame');
     },
     goFish: (fen: string, opts: SearchOpts = {}) =>
       new Promise<PV[]>((resolve /*, reject*/) => {
