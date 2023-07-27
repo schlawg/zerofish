@@ -1,3 +1,22 @@
+diff --git a/.gitignore b/.gitignore
+index c90b403..29cb4b5 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,5 +1,6 @@
+ !subprojects/*.wrap
+ *.swp
++*.o
+ .clang_complete
+ .DS_Store
+ .cache/
+@@ -10,6 +11,7 @@ compile_commands.json
+ CUDA_NN/
+ lc0.xcodeproj/
+ LC0VSProj/
++src/proto/
+ src/.vs/
+ subprojects/*
+ testdata/
 diff --git a/src/chess/pgn.h b/src/chess/pgn.h
 index 512d4c6..2588f11 100644
 --- a/src/chess/pgn.h
@@ -44,19 +63,18 @@ index 512d4c6..2588f11 100644
        // Only supposed to exist in the first line, but should not matter.
        if (line.substr(0,3) == "\xEF\xBB\xBF") line = line.substr(3);
 diff --git a/src/chess/uciloop.cc b/src/chess/uciloop.cc
-index ad76b25..56ed117 100644
+index ad76b25..f9557ac 100644
 --- a/src/chess/uciloop.cc
 +++ b/src/chess/uciloop.cc
-@@ -36,6 +36,8 @@
- #include <unordered_map>
- #include <unordered_set>
- #include <utility>
-+#include <emscripten.h>
-+#include <emscripten/threading.h>
- 
- #include "utils/exception.h"
+@@ -41,6 +41,7 @@
  #include "utils/logging.h"
-@@ -145,6 +147,16 @@ void UciLoop::RunLoop() {
+ #include "utils/string.h"
+ #include "version.h"
++#include "qutex.hpp"
+ 
+ namespace lczero {
+ 
+@@ -145,6 +146,16 @@ void UciLoop::RunLoop() {
    }
  }
  
@@ -73,15 +91,9 @@ index ad76b25..56ed117 100644
  bool UciLoop::DispatchCommand(
      const std::string& command,
      const std::unordered_map<std::string, std::string>& params) {
-@@ -218,13 +230,22 @@ void UciLoop::SendResponse(const std::string& response) {
-   SendResponses({response});
+@@ -219,11 +230,10 @@ void UciLoop::SendResponse(const std::string& response) {
  }
  
-+EM_JS(void, zero_post, (const char *str), {
-+  Module._zeroPort.postMessage(UTF8ToString(str));
-+  _free(str);
-+});
-+
  void UciLoop::SendResponses(const std::vector<std::string>& responses) {
 -  static std::mutex output_mutex;
 -  std::lock_guard<std::mutex> lock(output_mutex);
@@ -91,16 +103,10 @@ index ad76b25..56ed117 100644
 +  std::string all;
 +  for (auto it = responses.begin(); it != responses.end(); it++) {
 +    LOGFILE << "<< " << *it;
-+    all += *it;
-+    if (std::next(it) != responses.end()) all += "\n";
++    zerofish::zeroOut.push(*it);
    }
-+  char *buf = (char *)std::malloc(all.size() + 1);
-+  std::copy(all.begin(), all.end(), buf);
-+  buf[all.size()] = '\0';
-+  emscripten_async_run_in_main_runtime_thread(EM_FUNC_SIG_VI, (void*)&zero_post, (void*)buf);
  }
  
- void UciLoop::SendId() {
 diff --git a/src/chess/uciloop.h b/src/chess/uciloop.h
 index bae8e3d..558d264 100644
 --- a/src/chess/uciloop.h
@@ -115,7 +121,7 @@ index bae8e3d..558d264 100644
    void SendResponse(const std::string& response);
    // Sends responses to host ensuring they are received as a block.
 diff --git a/src/engine.cc b/src/engine.cc
-index a632ebb..0c4bd06 100644
+index a632ebb..644803a 100644
 --- a/src/engine.cc
 +++ b/src/engine.cc
 @@ -33,6 +33,7 @@
@@ -171,16 +177,19 @@ index a632ebb..0c4bd06 100644
    }
  
    // Cache size.
-@@ -325,7 +312,7 @@ EngineLoop::EngineLoop()
+@@ -325,10 +312,7 @@ EngineLoop::EngineLoop()
  }
  
  void EngineLoop::RunLoop() {
 -  if (!ConfigFile::Init() || !options_.ProcessAllFlags()) return;
+-  const auto options = options_.GetOptionsDict();
+-  Logging::Get().SetFilename(options.Get<std::string>(kLogFileId));
+-  if (options.Get<bool>(kPreload)) engine_.NewGame();
 +  if (!options_.ProcessAllFlags()) return;
-   const auto options = options_.GetOptionsDict();
-   Logging::Get().SetFilename(options.Get<std::string>(kLogFileId));
-   if (options.Get<bool>(kPreload)) engine_.NewGame();
-@@ -345,6 +332,10 @@ void EngineLoop::CmdIsReady() {
+   UciLoop::RunLoop();
+ }
+ 
+@@ -345,12 +329,13 @@ void EngineLoop::CmdIsReady() {
    SendResponse("readyok");
  }
  
@@ -191,6 +200,12 @@ index a632ebb..0c4bd06 100644
  void EngineLoop::CmdSetOption(const std::string& name, const std::string& value,
                                const std::string& context) {
    options_.SetUciOption(name, value, context);
+-  // Set the log filename for the case it was set in UCI option.
+-  Logging::Get().SetFilename(
+-      options_.GetOptionsDict().Get<std::string>(kLogFileId));
+ }
+ 
+ void EngineLoop::CmdUciNewGame() { engine_.NewGame(); }
 diff --git a/src/engine.h b/src/engine.h
 index 9743679..a349c30 100644
 --- a/src/engine.h
@@ -603,7 +618,7 @@ index 7602d5a..bdec04e 100644
  };
  
 diff --git a/src/utils/logging.cc b/src/utils/logging.cc
-index b4d4aa1..c3606d8 100644
+index b4d4aa1..b2d808c 100644
 --- a/src/utils/logging.cc
 +++ b/src/utils/logging.cc
 @@ -30,6 +30,7 @@
@@ -614,7 +629,38 @@ index b4d4aa1..c3606d8 100644
  
  namespace lczero {
  
-@@ -93,6 +94,21 @@ StdoutLogMessage::~StdoutLogMessage() {
+@@ -45,28 +46,8 @@ Logging& Logging::Get() {
+ 
+ void Logging::WriteLineRaw(const std::string& line) {
+   Mutex::Lock lock_(mutex_);
+-  if (filename_.empty()) {
+-    buffer_.push_back(line);
+-    if (buffer_.size() > kBufferSizeLines) buffer_.pop_front();
+-  } else {
+-    auto& file = (filename_ == kStderrFilename) ? std::cerr : file_;
+-    file << line << std::endl;
+-  }
+-}
+-
+-void Logging::SetFilename(const std::string& filename) {
+-  Mutex::Lock lock_(mutex_);
+-  if (filename_ == filename) return;
+-  filename_ = filename;
+-  if (filename.empty() || filename == kStderrFilename) {
+-    file_.close();
+-  }
+-  if (filename.empty()) return;
+-  if (filename != kStderrFilename) file_.open(filename, std::ios_base::app);
+-  auto& file = (filename == kStderrFilename) ? std::cerr : file_;
+-  file << "\n\n============= Log started. =============" << std::endl;
+-  for (const auto& line : buffer_) file << line << std::endl;
+-  buffer_.clear();
++  buffer_.push_back(line);
++  if (buffer_.size() > kBufferSizeLines) buffer_.pop_front();
+ }
+ 
+ LogMessage::LogMessage(const char* file, int line) {
+@@ -93,6 +74,21 @@ StdoutLogMessage::~StdoutLogMessage() {
    log_ << str();
  }
  
@@ -637,10 +683,35 @@ index b4d4aa1..c3606d8 100644
      std::chrono::time_point<std::chrono::steady_clock> time) {
    return std::chrono::system_clock::now() +
 diff --git a/src/utils/logging.h b/src/utils/logging.h
-index a9508de..e2b8a85 100644
+index a9508de..663ad0b 100644
 --- a/src/utils/logging.h
 +++ b/src/utils/logging.h
-@@ -81,6 +81,8 @@ class StdoutLogMessage : public std::ostringstream {
+@@ -28,7 +28,6 @@
+ #pragma once
+ 
+ #include <deque>
+-#include <fstream>
+ #include <iomanip>
+ #include <sstream>
+ #include <string>
+@@ -41,16 +40,11 @@ class Logging {
+  public:
+   static Logging& Get();
+ 
+-  // Sets the name of the log. Empty name disables logging.
+-  void SetFilename(const std::string& filename);
+-
+  private:
+   // Writes line to the log, and appends new line character.
+   void WriteLineRaw(const std::string& line);
+ 
+   Mutex mutex_;
+-  std::string filename_ GUARDED_BY(mutex_);
+-  std::ofstream file_ GUARDED_BY(mutex_);
+   std::deque<std::string> buffer_ GUARDED_BY(mutex_);
+ 
+   Logging() = default;
+@@ -81,6 +75,8 @@ class StdoutLogMessage : public std::ostringstream {
    LogMessage log_;
  };
  
@@ -649,7 +720,7 @@ index a9508de..e2b8a85 100644
  std::chrono::time_point<std::chrono::system_clock> SteadyClockToSystemClock(
      std::chrono::time_point<std::chrono::steady_clock> time);
  
-@@ -89,4 +91,5 @@ std::string FormatTime(std::chrono::time_point<std::chrono::system_clock> time);
+@@ -89,4 +85,5 @@ std::string FormatTime(std::chrono::time_point<std::chrono::system_clock> time);
  
  #define LOGFILE ::lczero::LogMessage(__FILE__, __LINE__)
  #define CERR ::lczero::StderrLogMessage(__FILE__, __LINE__)

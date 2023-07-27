@@ -11,7 +11,10 @@ Module.zero = cmd => Module.uci(cmd, false);
 Module.fish = cmd => Module.uci(cmd, true);
 
 Module.uci = (cmd, isFish) => {
-  const utf8 = stringToNewUTF8(cmd);
+  const sz = lengthBytesUTF8(cmd) + 1;
+  const utf8 = _malloc(sz);
+  if (!utf8) throw new Error(`Could not allocate ${sz} bytes`);
+  stringToUTF8(cmd, utf8, sz);
   try {
     _uci(utf8, isFish);
   } catch (e) {

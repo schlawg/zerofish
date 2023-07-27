@@ -11,8 +11,11 @@ export interface Zerofish {
   setZeroWeights: (weights: Uint8Array) => void;
   goZero: (fen: string) => Promise<string>;
   goFish: (fen: string, opts: SearchOpts) => Promise<PV[]>;
+  quit: () => void;
   stop: () => void;
   reset: () => void;
+  zero: (cmd: string) => void;
+  fish: (cmd: string) => void;
 }
 
 export default async function initModule({ urlBase } = { urlBase: '.' }): Promise<Zerofish> {
@@ -30,23 +33,26 @@ export default async function initModule({ urlBase } = { urlBase: '.' }): Promis
       new Promise<string>((resolve, reject) => {
         if (!gotWeights) return reject('unitialized');
         wasm.listenZero.onmessage = (e: MessageEvent) => {
-          if (!e.data.startsWith('bestmove')) return;
-          wasm.listenZero.onmessage = null;
-          resolve(e.data.split(' ')[1]);
+          for (const line of e.data.split('\n')) {
+            if (line === '') continue;
+            const tokens = line.split(' ');
+            if (tokens[0] === 'bestmove') resolve(tokens[1]);
+          }
         };
         wasm.zero(`position fen ${fen}`);
         wasm.zero(`go nodes 1`);
       }),
+    quit: () => {
+      wasm.quit();
+    },
     stop: () => {
       if (gotWeights) wasm.zero('stop');
       wasm.fish('stop');
     },
-    reset: (fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1') => {
-      wasm.fish(`position fen ${fen}`);
+    reset: () => {
+      stop();
       wasm.fish('ucinewgame');
-      if (!gotWeights) return;
-      wasm.zero(`position fen ${fen}`);
-      wasm.zero('ucinewgame');
+      if (gotWeights) wasm.zero('ucinewgame');
     },
     goFish: (fen: string, opts: SearchOpts = {}) =>
       new Promise<PV[]>((resolve /*, reject*/) => {
@@ -54,18 +60,17 @@ export default async function initModule({ urlBase } = { urlBase: '.' }): Promis
         const depth = opts.depth || 12;
         const pvs: PV[] = Array.from({ length: opts.pvs || 1 }, () => ({ moves: [], score: 0, depth: 0 }));
         wasm.listenFish.onmessage = (e: MessageEvent) => {
-          if (e.data.startsWith('bestmove')) resolve(pvs.slice());
-          else if (e.data.startsWith('info')) {
-            const info = e.data.split(' ');
-            if (info[1] === 'depth')
-              pvs[parseInt(info[6]) - 1] = {
-                moves: info.slice(21),
-                score: parseInt(info[9]),
-                depth: parseInt(info[2]),
+          for (const line of e.data.split('\n')) {
+            if (line === '') continue;
+            const tokens = line.split(' ');
+            if (tokens[0] === 'bestmove') resolve(pvs.slice());
+            else if (tokens[0] === 'info') {
+              pvs[parseInt(tokens[6]) - 1] = {
+                moves: tokens.slice(21),
+                score: parseInt(tokens[9]),
+                depth: parseInt(tokens[2]),
               };
-          } else {
-            console.warn(e.data);
-            // reject(e.data); ?
+            } else console.warn('unknown line', line);
           }
         };
         wasm.fish(`setoption name MultiPv value ${numPvs}`);
@@ -73,5 +78,7 @@ export default async function initModule({ urlBase } = { urlBase: '.' }): Promis
         if (opts.ms) wasm.fish(`go movetime ${opts.ms}`);
         else wasm.fish(`go depth ${depth}`);
       }),
+    zero: wasm.zero,
+    fish: wasm.fish,
   };
 }

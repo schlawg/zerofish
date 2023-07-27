@@ -11,6 +11,7 @@ function main() {
     -Ilc0/src
     -IStockfish/src
     -Ieigen
+    -I${LOCAL+../src/emscripten/}.
     -Wno-deprecated-copy-with-user-provided-copy
     -Wno-deprecated-declarations
     -Wno-unused-command-line-argument
@@ -38,9 +39,9 @@ function main() {
     -sSTACK_SIZE=512KB
     -sEXPORT_ES6
     -sMODULARIZE
-    -sEXPORTED_RUNTIME_METHODS=[stringToNewUTF8]
     -sEXPORT_NAME=zerofish
     -sENVIRONMENT=$ENVIRONMENT
+    -sUSE_PTHREADS
     -sPTHREAD_POOL_SIZE=16
   )
   SF_SOURCES=(
@@ -53,11 +54,9 @@ function main() {
     mcts/params.cc mcts/search.cc mcts/stoppers/alphazero.cc mcts/stoppers/common.cc
     mcts/stoppers/factory.cc mcts/stoppers/legacy.cc mcts/stoppers/simple.cc
     mcts/stoppers/smooth.cc mcts/stoppers/stoppers.cc mcts/stoppers/timemgr.cc neural/cache.cc
-    neural/decoder.cc neural/encoder.cc neural/factory.cc neural/loader.cc
-    neural/network_check.cc neural/network_demux.cc neural/network_legacy.cc
-    neural/network_mux.cc neural/network_random.cc neural/network_record.cc neural/network_rr.cc
-    neural/network_trivial.cc neural/blas/convolution1.cc neural/blas/fully_connected_layer.cc
-    neural/blas/se_unit.cc neural/blas/network_blas.cc neural/blas/winograd_convolution3.cc
+    neural/decoder.cc neural/encoder.cc neural/factory.cc neural/loader.cc neural/network_legacy.cc
+    neural/blas/convolution1.cc neural/blas/fully_connected_layer.cc neural/blas/se_unit.cc
+    neural/blas/network_blas.cc neural/blas/winograd_convolution3.cc
     neural/shared/activation.cc neural/shared/winograd_filter.cc utils/histogram.cc
     utils/logging.cc utils/numa.cc utils/optionsdict.cc utils/optionsparser.cc
     utils/protomessage.cc utils/random.cc  utils/string.cc utils/weights_adapter.cc
@@ -89,7 +88,6 @@ function main() {
 function localBuild() {
   pushd wasm > /dev/null
   . fetchSources.sh
-  echo $(pwd)
   make
   mv zerofishEngine.* "$OUT_DIR"
   popd > /dev/null
@@ -150,7 +148,6 @@ function generateMakefile() {
   LDFLAGS = ${LD_FLAGS[@]}
 
   build:
-	  @echo "SRCS=\$(SRCS) \$(OBJS) \$(CXXFLAGS) \$(LDFLAGS)"
 	  \$(MAKE) \$(EXE)
 
   \$(EXE): \$(OBJS)

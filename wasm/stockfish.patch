@@ -203,7 +203,7 @@ index b9d7231..2fe457e 100644
  
  } // namespace Stockfish
 diff --git a/src/misc.cpp b/src/misc.cpp
-index bbfa406..5153dc6 100644
+index bbfa406..570c118 100644
 --- a/src/misc.cpp
 +++ b/src/misc.cpp
 @@ -52,6 +52,8 @@ using fun8_t = bool(*)(HANDLE, BOOL, PTOKEN_PRIVILEGES, DWORD, PTOKEN_PRIVILEGES
@@ -215,22 +215,25 @@ index bbfa406..5153dc6 100644
  
  #if defined(__linux__) && !defined(__ANDROID__)
  #include <stdlib.h>
-@@ -391,20 +393,26 @@ void dbg_print() {
+@@ -65,6 +67,7 @@ using fun8_t = bool(*)(HANDLE, BOOL, PTOKEN_PRIVILEGES, DWORD, PTOKEN_PRIVILEGES
+ 
+ #include "misc.h"
+ #include "thread.h"
++#include "qutex.hpp"
+ 
+ using namespace std;
+ 
+@@ -391,20 +394,18 @@ void dbg_print() {
          }
  }
  
-+EM_JS(void, fish_post, (const char *str), {
-+  Module._fishPort.postMessage(UTF8ToString(str));
-+  _free(str);
-+});
- 
+-
 -/// Used to serialize access to std::cout to avoid multiple threads writing at
 -/// the same time.
 -
 -std::ostream& operator<<(std::ostream& os, SyncCout sc) {
-+std::ostream& operator<<(std::ostream& os, FishCoutCommand cmd) {
- 
-   static std::mutex m;
+-
+-  static std::mutex m;
 -
 -  if (sc == IO_LOCK)
 -      m.lock();
@@ -238,17 +241,17 @@ index bbfa406..5153dc6 100644
 -  if (sc == IO_UNLOCK)
 -      m.unlock();
 -
++std::ostream& operator<<(std::ostream& os, FishCoutCommand cmd) {
++
++  static std::mutex sstream_mutex;
 +  
-+  if (cmd == FishCoutCommand::ACQUIRE) m.lock();
++  if (cmd == FishCoutCommand::ACQUIRE) sstream_mutex.lock();
 +  if (cmd == FishCoutCommand::FLUSH) {
 +    string response = fish_cout.str();
 +    fish_cout.str("");
 +    fish_cout.clear();
-+    m.unlock();
-+    char *buf = (char *)std::malloc(response.size() + 1);
-+    std::copy(response.begin(), response.end(), buf);
-+    buf[response.size()] = '\0';
-+    emscripten_async_run_in_main_runtime_thread(EM_FUNC_SIG_VI, (void*)&fish_post, (void*)buf);
++    sstream_mutex.unlock();
++    zerofish::fishOut.push(response);
 +  }
    return os;
  }
@@ -716,10 +719,27 @@ index 740ad71..1737f8b 100644
  
  } // namespace Stockfish
 diff --git a/src/thread.cpp b/src/thread.cpp
-index c680393..ab56fbc 100644
+index c680393..6e55426 100644
 --- a/src/thread.cpp
 +++ b/src/thread.cpp
-@@ -182,9 +182,6 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states,
+@@ -17,7 +17,7 @@
+ */
+ 
+ #include <cassert>
+-
++#include <iostream>
+ #include <algorithm> // For std::count
+ #include "movegen.h"
+ #include "search.h"
+@@ -35,7 +35,6 @@ ThreadPool Threads; // Global object
+ /// in idle_loop(). Note that 'searching' and 'exit' should be already set.
+ 
+ Thread::Thread(size_t n) : idx(n), stdThread(&Thread::idle_loop, this) {
+-
+   wait_for_search_finished();
+ }
+ 
+@@ -182,9 +181,6 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states,
            || std::count(limits.searchmoves.begin(), limits.searchmoves.end(), m))
            rootMoves.emplace_back(m);
  
