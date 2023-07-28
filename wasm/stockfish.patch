@@ -719,27 +719,10 @@ index 740ad71..1737f8b 100644
  
  } // namespace Stockfish
 diff --git a/src/thread.cpp b/src/thread.cpp
-index c680393..6e55426 100644
+index c680393..ab56fbc 100644
 --- a/src/thread.cpp
 +++ b/src/thread.cpp
-@@ -17,7 +17,7 @@
- */
- 
- #include <cassert>
--
-+#include <iostream>
- #include <algorithm> // For std::count
- #include "movegen.h"
- #include "search.h"
-@@ -35,7 +35,6 @@ ThreadPool Threads; // Global object
- /// in idle_loop(). Note that 'searching' and 'exit' should be already set.
- 
- Thread::Thread(size_t n) : idx(n), stdThread(&Thread::idle_loop, this) {
--
-   wait_for_search_finished();
- }
- 
-@@ -182,9 +181,6 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states,
+@@ -182,9 +182,6 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states,
            || std::count(limits.searchmoves.begin(), limits.searchmoves.end(), m))
            rootMoves.emplace_back(m);
  

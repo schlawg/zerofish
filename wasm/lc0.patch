@@ -121,10 +121,14 @@ index bae8e3d..558d264 100644
    void SendResponse(const std::string& response);
    // Sends responses to host ensuring they are received as a block.
 diff --git a/src/engine.cc b/src/engine.cc
-index a632ebb..644803a 100644
+index a632ebb..dcafd65 100644
 --- a/src/engine.cc
 +++ b/src/engine.cc
-@@ -33,6 +33,7 @@
+@@ -30,9 +30,11 @@
+ #include <algorithm>
+ #include <cmath>
+ #include <functional>
++#include <emscripten/threading.h>
  
  #include "mcts/search.h"
  #include "mcts/stoppers/factory.h"
@@ -132,7 +136,7 @@ index a632ebb..644803a 100644
  #include "utils/configfile.h"
  #include "utils/logging.h"
  
-@@ -99,7 +100,6 @@ void EngineController::PopulateOptions(OptionsParser* options) {
+@@ -99,7 +101,6 @@ void EngineController::PopulateOptions(OptionsParser* options) {
    options->Add<IntOption>(kNNCacheSizeId, 0, 999999999) = 2000000;
    SearchParams::Populate(options);
  
@@ -140,7 +144,7 @@ index a632ebb..644803a 100644
    // Add "Ponder" option to signal to GUIs that we support pondering.
    // This option is currently not used by lc0 in any way.
    options->Add<BoolOption>(kPonderId) = true;
-@@ -107,7 +107,6 @@ void EngineController::PopulateOptions(OptionsParser* options) {
+@@ -107,7 +108,6 @@ void EngineController::PopulateOptions(OptionsParser* options) {
    options->Add<BoolOption>(kShowWDL) = false;
    options->Add<BoolOption>(kShowMovesleft) = false;
  
@@ -148,8 +152,13 @@ index a632ebb..644803a 100644
    PopulateTimeManagementOptions(RunType::kUci, options);
  
    options->Add<BoolOption>(kStrictUciTiming) = false;
-@@ -124,25 +123,13 @@ void EngineController::ResetMoveTimer() {
- void EngineController::UpdateFromUciOptions() {
+@@ -120,30 +120,25 @@ void EngineController::ResetMoveTimer() {
+   move_start_time_ = std::chrono::steady_clock::now();
+ }
+ 
+-// Updates values from Uci options.
+-void EngineController::UpdateFromUciOptions() {
++void EngineController::SetWeights(const std::optional<WeightsFile>& weights) {
    SharedLock lock(busy_mutex_);
  
 -  // Syzygy tablebases.
@@ -170,14 +179,25 @@ index a632ebb..644803a 100644
        NetworkFactory::BackendConfiguration(options_);
 -  if (network_configuration_ != network_configuration) {
 -    network_ = NetworkFactory::LoadNetwork(options_);
-+  if (network_configuration_ != network_configuration || bufferedWeights_) {
-+    network_ = NetworkFactory::LoadNetwork(options_, bufferedWeights_);
-     network_configuration_ = network_configuration;
-+    bufferedWeights_.reset();
-   }
+-    network_configuration_ = network_configuration;
+-  }
++  network_ = NetworkFactory::LoadNetwork(options_, weights);
++  network_configuration_ = network_configuration;
++  
++  // Cache size.
++  cache_.SetCapacity(options_.Get<int>(kNNCacheSizeId));
++
++  // Check whether we can update the move timer in "Go".
++  strict_uci_timing_ = options_.Get<bool>(kStrictUciTiming);
++}
++
++// Updates values from Uci options.
++void EngineController::UpdateFromUciOptions() {
++  SharedLock lock(busy_mutex_);
  
    // Cache size.
-@@ -325,10 +312,7 @@ EngineLoop::EngineLoop()
+   cache_.SetCapacity(options_.Get<int>(kNNCacheSizeId));
+@@ -325,10 +320,7 @@ EngineLoop::EngineLoop()
  }
  
  void EngineLoop::RunLoop() {
@@ -189,12 +209,13 @@ index a632ebb..644803a 100644
    UciLoop::RunLoop();
  }
  
-@@ -345,12 +329,13 @@ void EngineLoop::CmdIsReady() {
+@@ -345,12 +337,14 @@ void EngineLoop::CmdIsReady() {
    SendResponse("readyok");
  }
  
 +void EngineLoop::SetWeightsBuffer(const unsigned char *buffer, size_t size) {
-+  engine_.bufferedWeights_ = LoadWeightsFromBuffer(buffer, size);
++  engine_.SetWeights(LoadWeightsFromBuffer(buffer, size));
++  std::free((void *)buffer);
 +}
 +
  void EngineLoop::CmdSetOption(const std::string& name, const std::string& value,
@@ -207,18 +228,22 @@ index a632ebb..644803a 100644
  
  void EngineLoop::CmdUciNewGame() { engine_.NewGame(); }
 diff --git a/src/engine.h b/src/engine.h
-index 9743679..a349c30 100644
+index 9743679..04976b9 100644
 --- a/src/engine.h
 +++ b/src/engine.h
-@@ -76,6 +76,7 @@ class EngineController {
+@@ -75,10 +75,10 @@ class EngineController {
+   void Stop();
  
    Position ApplyPositionMoves();
++  void SetWeights(const std::optional<WeightsFile>& network);
  
-+  std::optional<WeightsFile> bufferedWeights_;
   private:
    void UpdateFromUciOptions();
- 
-@@ -120,6 +121,7 @@ class EngineLoop : public UciLoop {
+-
+   void SetupPosition(const std::string& fen,
+                      const std::vector<std::string>& moves);
+   void ResetMoveTimer();
+@@ -120,6 +120,7 @@ class EngineLoop : public UciLoop {
   public:
    EngineLoop();
  

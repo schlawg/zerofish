@@ -32,8 +32,8 @@ export default async function initModule({ urlBase } = { urlBase: '.' }): Promis
     goZero: (fen: string) =>
       new Promise<string>((resolve, reject) => {
         if (!gotWeights) return reject('unitialized');
-        wasm.listenZero.onmessage = (e: MessageEvent) => {
-          for (const line of e.data.split('\n')) {
+        wasm.listenZero = (msg: string) => {
+          for (const line of msg.split('\n')) {
             if (line === '') continue;
             const tokens = line.split(' ');
             if (tokens[0] === 'bestmove') resolve(tokens[1]);
@@ -59,8 +59,8 @@ export default async function initModule({ urlBase } = { urlBase: '.' }): Promis
         const numPvs = opts.pvs || 1;
         const depth = opts.depth || 12;
         const pvs: PV[] = Array.from({ length: opts.pvs || 1 }, () => ({ moves: [], score: 0, depth: 0 }));
-        wasm.listenFish.onmessage = (e: MessageEvent) => {
-          for (const line of e.data.split('\n')) {
+        wasm.listenFish = (msg: string) => {
+          for (const line of msg.split('\n')) {
             if (line === '') continue;
             const tokens = line.split(' ');
             if (tokens[0] === 'bestmove') resolve(pvs.slice());

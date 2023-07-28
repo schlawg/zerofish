@@ -42,7 +42,8 @@ function main() {
     -sEXPORT_NAME=zerofish
     -sENVIRONMENT=$ENVIRONMENT
     -sUSE_PTHREADS
-    -sPTHREAD_POOL_SIZE=16
+    -sPTHREAD_POOL_SIZE=17 # 1 runloop + 4 stockfish + 2 lc0 + 2 blas/gc === 17?
+    -sPTHREAD_POOL_SIZE_STRICT=2 # assert if any thread can't be assigned a web worker
   )
   SF_SOURCES=(
     bitbase.cpp bitboard.cpp endgame.cpp evaluate.cpp material.cpp misc.cpp movegen.cpp
