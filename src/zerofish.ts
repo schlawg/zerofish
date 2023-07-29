@@ -55,7 +55,7 @@ export default async function initModule({ urlBase } = { urlBase: '.' }): Promis
       if (gotWeights) wasm.zero('ucinewgame');
     },
     goFish: (fen: string, opts: SearchOpts = {}) =>
-      new Promise<PV[]>((resolve /*, reject*/) => {
+      new Promise<PV[]>(resolve => {
         const numPvs = opts.pvs || 1;
         const depth = opts.depth || 12;
         const pvs: PV[] = Array.from({ length: opts.pvs || 1 }, () => ({ moves: [], score: 0, depth: 0 }));

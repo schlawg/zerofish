@@ -823,7 +823,7 @@ index 8f1be00..1413cf2 100644
  std::string square(Square s);
  std::string move(Move m, bool chess960);
 diff --git a/src/ucioption.cpp b/src/ucioption.cpp
-index f6342e5..e6c8c3a 100644
+index f6342e5..3e7d228 100644
 --- a/src/ucioption.cpp
 +++ b/src/ucioption.cpp
 @@ -27,7 +27,6 @@
@@ -844,6 +844,15 @@ index f6342e5..e6c8c3a 100644
  
  /// Our case insensitive less() function as required by UCI protocol
  bool CaseInsensitiveLess::operator() (const string& s1, const string& s2) const {
+@@ -61,7 +57,7 @@ void init(OptionsMap& o) {
+   constexpr int MaxHashMB = Is64Bit ? 33554432 : 2048;
+ 
+   o["Debug Log File"]        << Option("", on_logger);
+-  o["Threads"]               << Option(1, 1, 1024, on_threads);
++  o["Threads"]               << Option(4, 1, 1024, on_threads);
+   o["Hash"]                  << Option(16, 1, MaxHashMB, on_hash_size);
+   o["Clear Hash"]            << Option(on_clear_hash);
+   o["Ponder"]                << Option(false);
 @@ -75,12 +71,6 @@ void init(OptionsMap& o) {
    o["UCI_LimitStrength"]     << Option(false);
    o["UCI_Elo"]               << Option(1320, 1320, 3190);

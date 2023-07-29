@@ -41,9 +41,7 @@ function main() {
     -sMODULARIZE
     -sEXPORT_NAME=zerofish
     -sENVIRONMENT=$ENVIRONMENT
-    -sUSE_PTHREADS
-    -sPTHREAD_POOL_SIZE=17 # 1 runloop + 4 stockfish + 2 lc0 + 2 blas/gc === 17?
-    -sPTHREAD_POOL_SIZE_STRICT=2 # assert if any thread can't be assigned a web worker
+#    -sUSE_PTHREADS
   )
   SF_SOURCES=(
     bitbase.cpp bitboard.cpp endgame.cpp evaluate.cpp material.cpp misc.cpp movegen.cpp
@@ -89,7 +87,7 @@ function main() {
 function localBuild() {
   pushd wasm > /dev/null
   . fetchSources.sh
-  make
+  make -j$(grep -c ^processor /proc/cpuinfo)
   mv zerofishEngine.* "$OUT_DIR"
   popd > /dev/null
 }
@@ -97,7 +95,7 @@ function localBuild() {
 function dockerBuild() {
   docker rm -f zerofish > /dev/null
   docker rmi -f zerofish-img > /dev/null
-  docker build -t zerofish-img ${FORCE:+--no-cache} -f wasm/Dockerfile .
+  docker build -t zerofish-img ${FORCE:+--no-cache} ${DEBUG:+--progress=plain} -f wasm/Dockerfile .
   docker create --name zerofish zerofish-img
   docker cp zerofish:/zf/dist/. "$OUT_DIR" # get the goodies
 }

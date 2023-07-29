@@ -27,10 +27,9 @@ void run() {
   Stockfish::Bitbases::init();
   Stockfish::Endgames::init();
   Stockfish::Threads.set(4);
-  Stockfish::Search::clear(); // After threads are up
   Stockfish::Position pos;
   Stockfish::StateListPtr states(new std::deque<Stockfish::StateInfo>(1));
-  pos.set("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false, &states->back(), Stockfish::Threads.main());
+  //pos.set("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false, &states->back(), Stockfish::Threads.main());
   lczero::InitializeMagicBitboards();
   lczero::EngineLoop lc0;
   while(true) {
@@ -42,6 +41,7 @@ void run() {
     }
     else break;
   }
+  Stockfish::Threads.set(0);
 }
 
 EM_JS(void, zero_post, (const char *str), {
@@ -58,9 +58,6 @@ extern "C" void wasmLoop() {
   zeroOut.fire(zero_post);
 }
 
-void init() {
-}
-
 EMSCRIPTEN_KEEPALIVE int main() {
   std::thread(run).detach();
   emscripten_set_main_loop(wasmLoop, 0, 1);
@@ -68,7 +65,6 @@ EMSCRIPTEN_KEEPALIVE int main() {
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE void uci(const char *utf8, int isFish) {
-  //if (!state)
   inQ.push(CommandIn(utf8, isFish));
 }
 
