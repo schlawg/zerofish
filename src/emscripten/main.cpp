@@ -29,7 +29,7 @@ void run() {
   Stockfish::Threads.set(4);
   Stockfish::Position pos;
   Stockfish::StateListPtr states(new std::deque<Stockfish::StateInfo>(1));
-  //pos.set("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false, &states->back(), Stockfish::Threads.main());
+  pos.set("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false, &states->back(), Stockfish::Threads.main());
   lczero::InitializeMagicBitboards();
   lczero::EngineLoop lc0;
   while(true) {

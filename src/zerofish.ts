@@ -1,20 +1,21 @@
-export interface SearchOpts {
+export interface ZerofishOpts {
+  zeroWeightsUrl?: string;
+  fishSearch?: FishOpts;
+}
+
+export interface FishOpts {
   depth?: number;
   pvs?: number;
   ms?: number;
-}
-
-export interface ZerofishOpts {
-  zeroWeightsUrl?: string;
-  fishSearch?: SearchOpts;
 }
 
 export type PV = { moves: string[]; score: number; depth: number };
 
 export interface Zerofish {
   setZeroWeights: (weights: Uint8Array) => void;
+  setFish: (fishSearch: FishOpts) => void;
   goZero: (fen: string) => Promise<string>;
-  goFish: (fen: string, opts?: SearchOpts) => Promise<PV[]>;
+  goFish: (fen: string, opts?: FishOpts) => Promise<PV[]>;
   quit: () => void;
   stop: () => void;
   reset: () => void;
@@ -22,7 +23,11 @@ export interface Zerofish {
   fish: (cmd: string) => void;
 }
 
-export default async function initModule({ zeroWeightsUrl, fishSearch }: ZerofishOpts = {}): Promise<Zerofish> {
+export default async function initModule({
+  zeroWeightsUrl,
+  fishSearch,
+}: ZerofishOpts = {}): Promise<Zerofish> {
+  console.log(zeroWeightsUrl);
   const fetchWeights = zeroWeightsUrl ? fetch(zeroWeightsUrl) : Promise.resolve(undefined);
   //@ts-ignore
   const module = await import(`./zerofishEngine.js`);
@@ -33,7 +38,10 @@ export default async function initModule({ zeroWeightsUrl, fishSearch }: Zerofis
   return {
     setZeroWeights: (weights: Uint8Array) => {
       wasm.setZeroWeights(weights);
-      zeroWeightsUrl = '//';
+      zeroWeightsUrl = 'localhost';
+    },
+    setFish: (searchOpts: FishOpts) => {
+      fishSearch = searchOpts;
     },
     goZero: (fen: string) =>
       new Promise<string>((resolve, reject) => {
