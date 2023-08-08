@@ -5,6 +5,10 @@ export interface SearchOpts {
   ms?: number;
 }
 
+export interface ZerofishOpts {
+  weightsUrl?: string;
+}
+
 export type PV = { moves: string[]; score: number; depth: number };
 
 export interface Zerofish {
@@ -18,20 +22,21 @@ export interface Zerofish {
   fish: (cmd: string) => void;
 }
 
-export default async function initModule({ urlBase } = { urlBase: '.' }): Promise<Zerofish> {
+export default async function initModule({ weightsUrl }: ZerofishOpts = {}): Promise<Zerofish> {
+  const fetchWeights = weightsUrl ? fetch(weightsUrl) : Promise.resolve(undefined);
   //@ts-ignore
-  const asset = await import(`${urlBase}/zerofishEngine.js`);
+  const asset = await import(`./zerofishEngine.js`);
   const wasm = await asset.default();
-  let gotWeights = false;
+  const weights = await fetchWeights;
+  if (weights) wasm.setZeroWeights(new Uint8Array(await weights.arrayBuffer()));
 
   return {
     setZeroWeights: (weights: Uint8Array) => {
       wasm.setZeroWeights(weights);
-      gotWeights = true;
     },
     goZero: (fen: string) =>
       new Promise<string>((resolve, reject) => {
-        if (!gotWeights) return reject('unitialized');
+        if (!weights) return reject('unitialized');
         wasm.listenZero = (msg: string) => {
           for (const line of msg.split('\n')) {
             if (line === '') continue;
@@ -46,13 +51,13 @@ export default async function initModule({ urlBase } = { urlBase: '.' }): Promis
       wasm.quit();
     },
     stop: () => {
-      if (gotWeights) wasm.zero('stop');
+      if (weights) wasm.zero('stop');
       wasm.fish('stop');
     },
     reset: () => {
       stop();
       wasm.fish('ucinewgame');
-      if (gotWeights) wasm.zero('ucinewgame');
+      if (weights) wasm.zero('ucinewgame');
     },
     goFish: (fen: string, opts: SearchOpts = {}) =>
       new Promise<PV[]>(resolve => {
