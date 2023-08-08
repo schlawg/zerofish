@@ -1,12 +1,12 @@
 export interface SearchOpts {
   depth?: number;
-  //nodes?: number;
   pvs?: number;
   ms?: number;
 }
 
 export interface ZerofishOpts {
-  weightsUrl?: string;
+  zeroWeightsUrl?: string;
+  fishSearch?: SearchOpts;
 }
 
 export type PV = { moves: string[]; score: number; depth: number };
@@ -14,7 +14,7 @@ export type PV = { moves: string[]; score: number; depth: number };
 export interface Zerofish {
   setZeroWeights: (weights: Uint8Array) => void;
   goZero: (fen: string) => Promise<string>;
-  goFish: (fen: string, opts: SearchOpts) => Promise<PV[]>;
+  goFish: (fen: string, opts?: SearchOpts) => Promise<PV[]>;
   quit: () => void;
   stop: () => void;
   reset: () => void;
@@ -22,21 +22,22 @@ export interface Zerofish {
   fish: (cmd: string) => void;
 }
 
-export default async function initModule({ weightsUrl }: ZerofishOpts = {}): Promise<Zerofish> {
-  const fetchWeights = weightsUrl ? fetch(weightsUrl) : Promise.resolve(undefined);
+export default async function initModule({ zeroWeightsUrl, fishSearch }: ZerofishOpts = {}): Promise<Zerofish> {
+  const fetchWeights = zeroWeightsUrl ? fetch(zeroWeightsUrl) : Promise.resolve(undefined);
   //@ts-ignore
-  const asset = await import(`./zerofishEngine.js`);
-  const wasm = await asset.default();
-  const weights = await fetchWeights;
-  if (weights) wasm.setZeroWeights(new Uint8Array(await weights.arrayBuffer()));
+  const module = await import(`./zerofishEngine.js`);
+  const wasm = await module.default();
+  const weightsRsp = await fetchWeights;
+  if (weightsRsp) wasm.setZeroWeights(new Uint8Array(await weightsRsp.arrayBuffer()));
 
   return {
     setZeroWeights: (weights: Uint8Array) => {
       wasm.setZeroWeights(weights);
+      zeroWeightsUrl = '//';
     },
     goZero: (fen: string) =>
       new Promise<string>((resolve, reject) => {
-        if (!weights) return reject('unitialized');
+        if (!zeroWeightsUrl) return reject('unitialized');
         wasm.listenZero = (msg: string) => {
           for (const line of msg.split('\n')) {
             if (line === '') continue;
@@ -44,26 +45,25 @@ export default async function initModule({ weightsUrl }: ZerofishOpts = {}): Pro
             if (tokens[0] === 'bestmove') resolve(tokens[1]);
           }
         };
-        wasm.zero(`position fen ${fen}`);
-        wasm.zero(`go nodes 1`);
+        wasm.zero(`position fen ${fen}\ngo nodes 1`);
       }),
     quit: () => {
       wasm.quit();
     },
     stop: () => {
-      if (weights) wasm.zero('stop');
+      if (zeroWeightsUrl) wasm.zero('stop');
       wasm.fish('stop');
     },
     reset: () => {
       stop();
       wasm.fish('ucinewgame');
-      if (weights) wasm.zero('ucinewgame');
+      if (zeroWeightsUrl) wasm.zero('ucinewgame');
     },
-    goFish: (fen: string, opts: SearchOpts = {}) =>
+    goFish: (fen: string, opts = fishSearch) =>
       new Promise<PV[]>(resolve => {
-        const numPvs = opts.pvs || 1;
-        const depth = opts.depth || 12;
-        const pvs: PV[] = Array.from({ length: opts.pvs || 1 }, () => ({ moves: [], score: 0, depth: 0 }));
+        const numPvs = opts?.pvs || 1;
+        const depth = opts?.depth || 12;
+        const pvs: PV[] = Array.from({ length: opts?.pvs || 1 }, () => ({ moves: [], score: 0, depth: 0 }));
         wasm.listenFish = (msg: string) => {
           for (const line of msg.split('\n')) {
             if (line === '') continue;
@@ -78,10 +78,11 @@ export default async function initModule({ weightsUrl }: ZerofishOpts = {}): Pro
             } else console.warn('unknown line', line);
           }
         };
-        wasm.fish(`setoption name MultiPv value ${numPvs}`);
-        wasm.fish(`position fen ${fen}`);
-        if (opts.ms) wasm.fish(`go movetime ${opts.ms}`);
-        else wasm.fish(`go depth ${depth}`);
+        wasm.fish(
+          `setoption name MultiPv value ${numPvs}\nposition fen ${fen}\n` + opts?.ms
+            ? `go movetime ${opts?.ms}`
+            : `go depth ${depth}`
+        );
       }),
     zero: wasm.zero,
     fish: wasm.fish,
