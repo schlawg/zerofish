@@ -29,8 +29,8 @@ export default async function initModule({
 }: ZerofishOpts = {}): Promise<Zerofish> {
   console.log(zeroWeightsUrl);
   const fetchWeights = zeroWeightsUrl ? fetch(zeroWeightsUrl) : Promise.resolve(undefined);
-  //@ts-ignore
-  const module = await import(`./zerofishEngine.js`);
+  const dontBundleMe = '.';
+  const module = await import(`${dontBundleMe}/zerofishEngine.js`);
   const wasm = await module.default();
   const weightsRsp = await fetchWeights;
   if (weightsRsp) wasm.setZeroWeights(new Uint8Array(await weightsRsp.arrayBuffer()));
@@ -53,7 +53,8 @@ export default async function initModule({
             if (tokens[0] === 'bestmove') resolve(tokens[1]);
           }
         };
-        wasm.zero(`position fen ${fen}\ngo nodes 1`);
+        wasm.zero(`position fen ${fen}`);
+        wasm.zero(`go nodes 1`);
       }),
     quit: () => {
       wasm.quit();
@@ -86,11 +87,10 @@ export default async function initModule({
             } else console.warn('unknown line', line);
           }
         };
-        wasm.fish(
-          `setoption name MultiPv value ${numPvs}\nposition fen ${fen}\n` + opts?.ms
-            ? `go movetime ${opts?.ms}`
-            : `go depth ${depth}`
-        );
+        wasm.fish(`setoption name MultiPv value ${numPvs}`);
+        wasm.fish(`position fen ${fen}`);
+        if (opts?.ms) wasm.fish(`go movetime ${opts?.ms}`);
+        else wasm.fish(`go depth ${depth}`);
       }),
     zero: wasm.zero,
     fish: wasm.fish,
