@@ -25,7 +25,7 @@ struct Qutex {
     return el;
   }
 
-  std::string unwrap() {
+  std::string unwind() {
     std::unique_lock<std::mutex> lock(m);
     std::string all;
     while (!q.empty()) {
@@ -37,7 +37,7 @@ struct Qutex {
   }
 
   void fire(void (*post)(const char *)) {
-    std::string all = std::move(unwrap());
+    std::string all = std::move(unwind());
     if (all.empty()) return;
     post(all.c_str());
   };
