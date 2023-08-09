@@ -1,6 +1,6 @@
 export interface ZerofishOpts {
-  zeroWeightsUrl?: string;
-  fishSearch?: FishOpts;
+  pbUrl?: string;
+  search?: FishOpts;
 }
 
 export interface FishOpts {
@@ -23,12 +23,9 @@ export interface Zerofish {
   fish: (cmd: string) => void;
 }
 
-export default async function initModule({
-  zeroWeightsUrl,
-  fishSearch,
-}: ZerofishOpts = {}): Promise<Zerofish> {
-  console.log(zeroWeightsUrl);
-  const fetchWeights = zeroWeightsUrl ? fetch(zeroWeightsUrl) : Promise.resolve(undefined);
+export default async function initModule({ pbUrl, search }: ZerofishOpts = {}): Promise<Zerofish> {
+  console.log(pbUrl);
+  const fetchWeights = pbUrl ? fetch(pbUrl) : Promise.resolve(undefined);
   const dontBundleMe = '.';
   const module = await import(`${dontBundleMe}/zerofishEngine.js`);
   const wasm = await module.default();
@@ -38,14 +35,14 @@ export default async function initModule({
   return {
     setZeroWeights: (weights: Uint8Array) => {
       wasm.setZeroWeights(weights);
-      zeroWeightsUrl = 'localhost';
+      pbUrl = 'localhost';
     },
     setFish: (searchOpts: FishOpts) => {
-      fishSearch = searchOpts;
+      search = searchOpts;
     },
     goZero: (fen: string) =>
       new Promise<string>((resolve, reject) => {
-        if (!zeroWeightsUrl) return reject('unitialized');
+        if (!pbUrl) return reject('unitialized');
         wasm.listenZero = (msg: string) => {
           for (const line of msg.split('\n')) {
             if (line === '') continue;
@@ -60,15 +57,15 @@ export default async function initModule({
       wasm.quit();
     },
     stop: () => {
-      if (zeroWeightsUrl) wasm.zero('stop');
+      if (pbUrl) wasm.zero('stop');
       wasm.fish('stop');
     },
     reset: () => {
       stop();
       wasm.fish('ucinewgame');
-      if (zeroWeightsUrl) wasm.zero('ucinewgame');
+      if (pbUrl) wasm.zero('ucinewgame');
     },
-    goFish: (fen: string, opts = fishSearch) =>
+    goFish: (fen: string, opts = search) =>
       new Promise<PV[]>(resolve => {
         const numPvs = opts?.pvs || 1;
         const depth = opts?.depth || 12;
