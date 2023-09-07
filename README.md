@@ -1,6 +1,6 @@
 # WTF is this
 
-Just a toolkit to construct humanlike chess bots in the browser. You get stockfish classical and lc0. The lc0 can only handle maia (go nodes 1) weights.
+Just a toolkit to construct chess bots in the browser. You get stockfish classical and lc0. The lc0 can only handle maia (go nodes 1) weights.
 
 # Usage
 
@@ -11,7 +11,10 @@ then do something fun, like this:
 import makeZerofish from 'zerofish';
 
 const zf = await makeZerofish({
-  pbUrl: 'https://github.com/lichess-org/lifat/blob/master/bots/weights/maia-1500.pb',
+  net: {
+    name: 'example',
+    url: 'https://github.com/lichess-org/lifat/blob/master/bots/weights/maia-1500.pb',
+  },
 });
 
 // the simplest possible brilliant move detector that almost certainly will not work but why not try
