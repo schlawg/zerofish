@@ -1,5 +1,5 @@
 export interface ZerofishOpts {
-  pbUrl?: string;
+  net?: { name: string; url: string };
   search?: FishOpts;
 }
 
@@ -12,8 +12,9 @@ export interface FishOpts {
 export type PV = { moves: string[]; score: number; depth: number };
 
 export interface Zerofish {
-  setZeroWeights: (weights: Uint8Array) => void;
-  setFish: (fishSearch: FishOpts) => void;
+  setNet: (name: string, weights: Uint8Array) => void;
+  netName?: string;
+  setSearch: (fishSearch: FishOpts) => void;
   goZero: (fen: string) => Promise<string>;
   goFish: (fen: string, opts?: FishOpts) => Promise<PV[]>;
   quit: () => void;
@@ -23,26 +24,30 @@ export interface Zerofish {
   fish: (cmd: string) => void;
 }
 
-export default async function initModule({ pbUrl, search }: ZerofishOpts = {}): Promise<Zerofish> {
-  console.log(pbUrl);
-  const fetchWeights = pbUrl ? fetch(pbUrl) : Promise.resolve(undefined);
+export default async function initModule({ net, search }: ZerofishOpts = {}): Promise<Zerofish> {
+  const fetchWeights = net ? fetch(net.url) : Promise.resolve(undefined);
   const dontBundleMe = '.';
   const module = await import(`${dontBundleMe}/zerofishEngine.js`);
   const wasm = await module.default();
   const weightsRsp = await fetchWeights;
   if (weightsRsp) wasm.setZeroWeights(new Uint8Array(await weightsRsp.arrayBuffer()));
 
-  return {
-    setZeroWeights: (weights: Uint8Array) => {
+  return new (class implements Zerofish {
+    netName?: string = net?.name;
+    search?: FishOpts = search;
+    zero = wasm.zero;
+    fish = wasm.fish;
+
+    setNet(name: string, weights: Uint8Array) {
       wasm.setZeroWeights(weights);
-      pbUrl = 'localhost';
-    },
-    setFish: (searchOpts: FishOpts) => {
-      search = searchOpts;
-    },
-    goZero: (fen: string) =>
-      new Promise<string>((resolve, reject) => {
-        if (!pbUrl) return reject('unitialized');
+      this.netName = name;
+    }
+    setSearch(searchOpts: FishOpts) {
+      this.search = searchOpts;
+    }
+    goZero(fen: string) {
+      return new Promise<string>((resolve, reject) => {
+        if (!this.netName) return reject('unitialized');
         wasm.listenZero = (msg: string) => {
           for (const line of msg.split('\n')) {
             if (line === '') continue;
@@ -52,21 +57,22 @@ export default async function initModule({ pbUrl, search }: ZerofishOpts = {}): 
         };
         wasm.zero(`position fen ${fen}`);
         wasm.zero(`go nodes 1`);
-      }),
-    quit: () => {
+      });
+    }
+    quit() {
       wasm.quit();
-    },
-    stop: () => {
-      if (pbUrl) wasm.zero('stop');
+    }
+    stop() {
+      if (this.netName) wasm.zero('stop');
       wasm.fish('stop');
-    },
-    reset: () => {
+    }
+    reset() {
       stop();
       wasm.fish('ucinewgame');
-      if (pbUrl) wasm.zero('ucinewgame');
-    },
-    goFish: (fen: string, opts = search) =>
-      new Promise<PV[]>(resolve => {
+      if (this.netName) wasm.zero('ucinewgame');
+    }
+    goFish(fen: string, opts = this.search) {
+      return new Promise<PV[]>(resolve => {
         const numPvs = opts?.pvs || 1;
         const depth = opts?.depth || 12;
         const pvs: PV[] = Array.from({ length: opts?.pvs || 1 }, () => ({ moves: [], score: 0, depth: 0 }));
@@ -88,8 +94,7 @@ export default async function initModule({ pbUrl, search }: ZerofishOpts = {}): 
         wasm.fish(`position fen ${fen}`);
         if (opts?.ms) wasm.fish(`go movetime ${opts?.ms}`);
         else wasm.fish(`go depth ${depth}`);
-      }),
-    zero: wasm.zero,
-    fish: wasm.fish,
-  };
+      });
+    }
+  })();
 }

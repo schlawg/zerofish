@@ -4,8 +4,10 @@ cd "$(dirname "${BASH_SOURCE:-$0}")/.."
 
 function main() {
 
-  setVariablesFromArgs "$@"
+  parseArgs "$@"
 
+  # there should just be a static makefile. the generated stuff here is a holdover from early
+  # versions still using meson for lc0
   CXX_FLAGS=(
     "${OPT_FLAGS[@]}"
     -Ilc0/src
@@ -41,7 +43,6 @@ function main() {
     -sMODULARIZE
     -sEXPORT_NAME=zerofish
     -sENVIRONMENT=$ENVIRONMENT
-#    -sUSE_PTHREADS
   )
   SF_SOURCES=(
     bitbase.cpp bitboard.cpp endgame.cpp evaluate.cpp material.cpp misc.cpp movegen.cpp
@@ -102,14 +103,12 @@ function dockerBuild() {
 
 function maybeCreateRequire() { # coax the es6 emscripten output into working with nodejs
   if [ "$ENVIRONMENT" != "node" ]; then return; fi
-  # if [ $2 ]; then sed -i '0,/require/{s/require/globalThis.require/}' "$1"; fi # ugh
   cat src/emscripten/createRequire.js "$1" > "$1.tmp"
   mv "$1.tmp" "$1"
 }
 
-function setVariablesFromArgs() {
+function parseArgs() {
   # defaults
-  ARTIFACT="zerofishEngine"
   OPT_FLAGS=(-O3 -DNDEBUG)
   ENVIRONMENT="web,worker"
   LOCAL=true
@@ -138,7 +137,7 @@ function generateMakefile() {
   cat > wasm/Makefile<<EOL
   # generated with wasm/build.sh
 
-  EXE = $ARTIFACT.js
+  EXE = zerofishEngine.js
   CXX = em++
   SRCS = $SRCS ${LOCAL+../src/emscripten/}main.cpp
   OBJS = $OBJS ${LOCAL+../src/emscripten/}main.o

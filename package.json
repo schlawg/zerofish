@@ -1,19 +1,19 @@
 {
   "name": "zerofish",
-  "version": "0.0.11",
+  "version": "0.0.13",
   "author": "T-bone Duplexus",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "main": "dist/zerofish.js",
   "dependencies": {
-    "@types/node": "^20.4.2",
-    "@types/web": "^0.0.84",
-    "@types/emscripten": "^1.39.6",
-    "esbuild": "^0.18.4",
-    "prettier": "2.8.1",
+    "@types/node": "^20.5.0",
+    "@types/web": "^0.0.113",
+    "@types/emscripten": "^1.39.7",
+    "prettier": "3.0.1",
     "typescript": "^5.1.6"
   },
   "scripts": {
+    "format": "prettier --write .",
     "node": "tsc && node dist/test/node",
     "wasm": "wasm/build.sh docker",
     "web": "pnpm wasm && tsc",
