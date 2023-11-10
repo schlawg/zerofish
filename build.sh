@@ -1,19 +1,19 @@
 #!/usr/bin/env -S bash -e
 
-cd "$(dirname "${BASH_SOURCE:-$0}")/.."
+# Use "./build.sh docker" if you don't have emscripten
+
+cd "$(dirname "${BASH_SOURCE:-$0}")"
 
 function main() {
 
   parseArgs "$@"
 
-  # there should just be a static makefile. the generated stuff here is a holdover from early
-  # versions still using meson for lc0
   CXX_FLAGS=(
     "${OPT_FLAGS[@]}"
     -Ilc0/src
     -IStockfish/src
     -Ieigen
-    -I${LOCAL+../src/emscripten/}.
+    -Iglue
     -Wno-deprecated-copy-with-user-provided-copy
     -Wno-deprecated-declarations
     -Wno-unused-command-line-argument
@@ -27,22 +27,28 @@ function main() {
     -D__i386__
     -DEIGEN_NO_CPUID
     -DEIGEN_DONT_VECTORIZE
+    -DEIGEN_DONT_PARALLELIZE
     -DUSE_SSE2
+    -DUSE_SSSE3
     -DUSE_SSE41
     -DUSE_POPCNT
     -DNO_PEXT
+    -flto
   )
   LD_FLAGS=(
     "${CXX_FLAGS[@]}"
-    --pre-js=${LOCAL+../src/emscripten/}initModule.js
-    ${DEBUG+"--source-map-embed --source-map-embed-sources"} 
+    --pre-js=glue/initModule.js
     -sEXPORTED_FUNCTIONS=['_free','_malloc','_main']
-    -sINITIAL_MEMORY=512MB
-    -sSTACK_SIZE=512KB
+    -sINITIAL_MEMORY=128MB
+    -sSTACK_SIZE=1MB
     -sEXPORT_ES6
-    -sMODULARIZE
+    -sSTRICT
+    -sALLOW_MEMORY_GROWTH=1
+    -sALLOW_BLOCKING_ON_MAIN_THREAD=0
+    -sDISABLE_EXCEPTION_CATCHING=0
     -sEXPORT_NAME=zerofish
     -sENVIRONMENT=$ENVIRONMENT
+    -Wno-pthreads-mem-growth
   )
   SF_SOURCES=(
     bitbase.cpp bitboard.cpp endgame.cpp evaluate.cpp material.cpp misc.cpp movegen.cpp
@@ -63,68 +69,60 @@ function main() {
     version.cc
   )
 
-  for i in "${!LC0_SOURCES[@]}"; do
-    SRCS+="lc0/src/${LC0_SOURCES[$i]} "
-    OBJS+="lc0/src/${LC0_SOURCES[$i]%.cc}.o "
-  done
   for i in "${!SF_SOURCES[@]}"; do
     SRCS+="Stockfish/src/${SF_SOURCES[$i]} "
-    OBJS+="Stockfish/src/${SF_SOURCES[$i]%.cpp}.o "
+  done
+  for i in "${!LC0_SOURCES[@]}"; do
+    SRCS+="lc0/src/${LC0_SOURCES[$i]} "
   done
 
+  SRCS+="glue/main.cpp"
+  
   OUT_DIR="$(pwd)/dist"
   mkdir -p "$OUT_DIR"
 
   generateMakefile
 
-  if [ $LOCAL ]; then
-    localBuild
-  else
-    dockerBuild
-  fi
-  maybeCreateRequire "$OUT_DIR/zerofishEngine.worker.js"
-}
-
-function localBuild() {
   pushd wasm > /dev/null
   . fetchSources.sh
-  make -j$(grep -c ^processor /proc/cpuinfo)
-  mv zerofishEngine.* "$OUT_DIR"
+  if [ $LOCAL ]; then
+    make -j$(grep -c ^processor /proc/cpuinfo)
+  else
+    docker run --rm -u $(id -u):$(id -g) -v "$PWD":/zf -w /zf emscripten/emsdk:3.1.43 sh -c 'make -j$(nproc)'
+  fi
+  mv -f zerofishEngine.* "$OUT_DIR"
   popd > /dev/null
-}
-
-function dockerBuild() {
-  docker rm -f zerofish > /dev/null
-  docker rmi -f zerofish-img > /dev/null
-  docker build -t zerofish-img ${FORCE:+--no-cache} ${DEBUG:+--progress=plain} -f wasm/Dockerfile .
-  docker create --name zerofish zerofish-img
-  docker cp zerofish:/zf/dist/. "$OUT_DIR" # get the goodies
+  maybeCreateRequire "$OUT_DIR/zerofishEngine.worker.js"
 }
 
 function maybeCreateRequire() { # coax the es6 emscripten output into working with nodejs
   if [ "$ENVIRONMENT" != "node" ]; then return; fi
-  cat src/emscripten/createRequire.js "$1" > "$1.tmp"
+  cat wasm/glue/createRequire.js "$1" > "$1.tmp"
   mv "$1.tmp" "$1"
 }
 
 function parseArgs() {
   # defaults
-  OPT_FLAGS=(-O3 -DNDEBUG)
+  OPT_FLAGS=(-O3 -DNDEBUG --closure=1)
   ENVIRONMENT="web,worker"
   LOCAL=true
-  unset FORCE DEBUG
+  unset DEBUG
 
   # override defaults with command line arguments
   while test $# -gt 0; do
     if [ "$1" == "debug" ]; then
       DEBUG=true
-      OPT_FLAGS=(-O0 -DDEBUG -sASSERTIONS -g3 -gsource-map -sSAFE_HEAP -sNO_DISABLE_EXCEPTION_CATCHING)
+      OPT_FLAGS=(-O0 -DDEBUG -sASSERTIONS=2 -g3 -sSAFE_HEAP)
     elif [ "$1" == "docker" ]; then
       unset LOCAL
-    elif [ "$1" == "force" ]; then
-      FORCE=true
     elif [ "$1" == "node" ]; then
       ENVIRONMENT="node"
+    elif [ "$1" == "help" ] || [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
+      echo "Usage: $0 [docker] [debug] [node]"
+      echo "  docker: build using docker"
+      echo "  debug: build with debug symbols"
+      echo "  node: build for nodejs"
+      exit 0
     else
       echo "Unknown argument: $1"
       exit 1
@@ -139,8 +137,8 @@ function generateMakefile() {
 
   EXE = zerofishEngine.js
   CXX = em++
-  SRCS = $SRCS ${LOCAL+../src/emscripten/}main.cpp
-  OBJS = $OBJS ${LOCAL+../src/emscripten/}main.o
+  SRCS = $SRCS
+  OBJS := \$(foreach src,\$(SRCS),\$(if \$(findstring .cpp,\$(src)),\$(src:.cpp=.o),\$(src:.c=.o)))
 
   CXXFLAGS = ${CXX_FLAGS[@]}
   LDFLAGS = ${LD_FLAGS[@]}
@@ -150,6 +148,12 @@ function generateMakefile() {
 
   \$(EXE): \$(OBJS)
 	  \$(CXX) -o \$@ \$(OBJS) \$(LDFLAGS)
+
+  %.o: %%.cpp
+	  \$(CXX) -c \$(CXXFLAGS) \$< -o \$@
+
+  %.o: %%.c
+	  \$(CXX) -c \$(CXXFLAGS) \$< -o \$@
 EOL
 }
 
