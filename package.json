@@ -1,22 +1,22 @@
 {
   "name": "zerofish",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "author": "T-bone Duplexus",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "main": "dist/zerofish.js",
   "dependencies": {
-    "@types/node": "^20.5.0",
-    "@types/web": "^0.0.113",
-    "@types/emscripten": "^1.39.7",
-    "prettier": "3.0.1",
-    "typescript": "^5.1.6"
+    "@types/node": "^20.9.0",
+    "@types/web": "^0.0.119",
+    "@types/emscripten": "^1.39.10",
+    "prettier": "3.1.0",
+    "typescript": "^5.2.2"
   },
   "scripts": {
     "format": "prettier --write .",
     "test": "./build.sh node && tsc && node dist/test/node",
     "build": "./build.sh && tsc",
-    "clean": "rm wasm/Makefile -rf dist && if [ -d wasm/lc0 ]; then git -C wasm/lc0 clean -fdx -e *.pb.h; fi && if [ -d wasm/Stockfish ]; then git -C wasm/Stockfish clean -fdx; fi"
+    "clean": "rm wasm/Makefile -rf dist/* && if [ -d wasm/lc0 ]; then git -C wasm/lc0 clean -fdx -e *.pb.h; fi && if [ -d wasm/Stockfish ]; then git -C wasm/Stockfish clean -fdx; fi"
   },
   "files": [
     "dist/zerofish.d.ts",

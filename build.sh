@@ -38,11 +38,12 @@ function main() {
   LD_FLAGS=(
     "${CXX_FLAGS[@]}"
     --pre-js=glue/initModule.js
-    -sEXPORTED_FUNCTIONS=['_free','_malloc','_main']
+    -sEXPORTED_FUNCTIONS=['_free','_malloc','_main','_set_weights','_uci']
     -sINITIAL_MEMORY=128MB
     -sSTACK_SIZE=1MB
     -sEXPORT_ES6
     -sSTRICT
+    -sPROXY_TO_PTHREAD
     -sALLOW_MEMORY_GROWTH=1
     -sALLOW_BLOCKING_ON_MAIN_THREAD=0
     -sDISABLE_EXCEPTION_CATCHING=0
@@ -138,7 +139,7 @@ function generateMakefile() {
   EXE = zerofishEngine.js
   CXX = em++
   SRCS = $SRCS
-  OBJS := \$(foreach src,\$(SRCS),\$(if \$(findstring .cpp,\$(src)),\$(src:.cpp=.o),\$(src:.c=.o)))
+  OBJS := \$(foreach src,\$(SRCS),\$(if \$(findstring .cpp,\$(src)),\$(src:.cpp=.o),\$(src:.cc=.o)))
 
   CXXFLAGS = ${CXX_FLAGS[@]}
   LDFLAGS = ${LD_FLAGS[@]}
@@ -152,7 +153,7 @@ function generateMakefile() {
   %.o: %%.cpp
 	  \$(CXX) -c \$(CXXFLAGS) \$< -o \$@
 
-  %.o: %%.c
+  %.o: %%.cc
 	  \$(CXX) -c \$(CXXFLAGS) \$< -o \$@
 EOL
 }

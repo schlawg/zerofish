@@ -1,4 +1,5 @@
 export interface ZerofishOpts {
+  root?: string;
   net?: { name: string; url: string };
   search?: FishOpts;
 }
@@ -24,9 +25,9 @@ export interface Zerofish {
   fish: (cmd: string) => void;
 }
 
-export default async function initModule({ net, search }: ZerofishOpts = {}): Promise<Zerofish> {
+export default async function initModule({ root, net, search }: ZerofishOpts = {}): Promise<Zerofish> {
   const fetchWeights = net ? fetch(net.url) : Promise.resolve(undefined);
-  const dontBundleMe = '.';
+  const dontBundleMe = root ?? '.';
   const module = await import(`${dontBundleMe}/zerofishEngine.js`);
   const wasm = await module.default();
   const weightsRsp = await fetchWeights;

@@ -19,31 +19,6 @@ struct CommandIn {
 
 zerofish::Qutex<CommandIn> inQ;
 
-void request_loop() {
-  Stockfish::UCI::init(Stockfish::Options);
-  Stockfish::PSQT::init();
-  Stockfish::Bitboards::init();
-  Stockfish::Position::init();
-  Stockfish::Bitbases::init();
-  Stockfish::Endgames::init();
-  Stockfish::Threads.set(4);
-  Stockfish::Position pos;
-  Stockfish::StateListPtr states(new std::deque<Stockfish::StateInfo>(1));
-  pos.set("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false, &states->back(), Stockfish::Threads.main());
-  lczero::InitializeMagicBitboards();
-  lczero::EngineLoop lc0;
-  while(true) {
-    auto cmd = inQ.pop();
-    if (cmd.weightsBuffer) lc0.SetWeightsBuffer(cmd.weightsBuffer, cmd.weightsSize);
-    else if (!cmd.uci.empty()) {
-      if (cmd.isFish) Stockfish::UCI::process_command(cmd.uci, pos, states);
-      else lc0.ProcessCommand(cmd.uci);
-    }
-    else break;
-  }
-  Stockfish::Threads.set(0);
-}
-
 EM_JS(void, zero_post, (const char *str), {
   Module.listenZero?.(UTF8ToString(str));
 });
@@ -58,8 +33,29 @@ extern "C" void response_fire() {
 }
 
 EMSCRIPTEN_KEEPALIVE int main() {
-  std::thread(request_loop).detach();
+  Stockfish::UCI::init(Stockfish::Options);
+  Stockfish::PSQT::init();
+  Stockfish::Bitboards::init();
+  Stockfish::Position::init();
+  Stockfish::Bitbases::init();
+  Stockfish::Endgames::init();
+  Stockfish::Threads.set(4);
+  Stockfish::Position pos;
+  Stockfish::StateListPtr states(new std::deque<Stockfish::StateInfo>(1));
+  pos.set("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false, &states->back(), Stockfish::Threads.main());
+  lczero::InitializeMagicBitboards();
+  lczero::EngineLoop lc0;
   emscripten_set_main_loop(response_fire, 0, 1);
+  while(true) {
+    auto cmd = inQ.pop();
+    if (cmd.weightsBuffer) lc0.SetWeightsBuffer(cmd.weightsBuffer, cmd.weightsSize);
+    else if (!cmd.uci.empty()) {
+      if (cmd.isFish) Stockfish::UCI::process_command(cmd.uci, pos, states);
+      else lc0.ProcessCommand(cmd.uci);
+    }
+    else break;
+  }
+  Stockfish::Threads.set(0);
   return 0;
 }
 
