@@ -13,7 +13,7 @@ function main() {
     -Ilc0/src
     -IStockfish/src
     -Ieigen
-    -Iglue
+    -Isrc
     -Wno-deprecated-copy-with-user-provided-copy
     -Wno-deprecated-declarations
     -Wno-unused-command-line-argument
@@ -37,9 +37,9 @@ function main() {
   )
   LD_FLAGS=(
     "${CXX_FLAGS[@]}"
-    --pre-js=glue/initModule.js
+    --pre-js=src/initModule.js
     -sEXPORTED_FUNCTIONS=['_free','_malloc','_main','_set_weights','_uci']
-    -sINITIAL_MEMORY=128MB
+    -sINITIAL_MEMORY=256MB
     -sSTACK_SIZE=1MB
     -sEXPORT_ES6
     -sSTRICT
@@ -77,7 +77,7 @@ function main() {
     SRCS+="lc0/src/${LC0_SOURCES[$i]} "
   done
 
-  SRCS+="glue/main.cpp"
+  SRCS+="src/glue.cpp"
   
   OUT_DIR="$(pwd)/dist"
   mkdir -p "$OUT_DIR"
@@ -98,7 +98,7 @@ function main() {
 
 function maybeCreateRequire() { # coax the es6 emscripten output into working with nodejs
   if [ "$ENVIRONMENT" != "node" ]; then return; fi
-  cat wasm/glue/createRequire.js "$1" > "$1.tmp"
+  cat wasm/src/createRequire.js "$1" > "$1.tmp"
   mv "$1.tmp" "$1"
 }
 

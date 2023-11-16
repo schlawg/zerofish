@@ -49,13 +49,14 @@ export default async function initModule({ root, net, search }: ZerofishOpts = {
     goZero(fen: string) {
       return new Promise<string>((resolve, reject) => {
         if (!this.netName) return reject('unitialized');
-        wasm.listenZero = (msg: string) => {
+        wasm['listenZero'] = (msg: string) => {
           for (const line of msg.split('\n')) {
             if (line === '') continue;
             const tokens = line.split(' ');
             if (tokens[0] === 'bestmove') resolve(tokens[1]);
           }
         };
+        console.log(String(wasm['listenZero']));
         wasm.zero(`position fen ${fen}`);
         wasm.zero(`go nodes 1`);
       });
@@ -77,7 +78,7 @@ export default async function initModule({ root, net, search }: ZerofishOpts = {
         const numPvs = opts?.pvs || 1;
         const depth = opts?.depth || 12;
         const pvs: PV[] = Array.from({ length: opts?.pvs || 1 }, () => ({ moves: [], score: 0, depth: 0 }));
-        wasm.listenFish = (msg: string) => {
+        wasm['listenFish'] = (msg: string) => {
           for (const line of msg.split('\n')) {
             if (line === '') continue;
             const tokens = line.split(' ');

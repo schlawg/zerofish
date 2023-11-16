@@ -63,14 +63,14 @@ index 512d4c6..2588f11 100644
        // Only supposed to exist in the first line, but should not matter.
        if (line.substr(0,3) == "\xEF\xBB\xBF") line = line.substr(3);
 diff --git a/src/chess/uciloop.cc b/src/chess/uciloop.cc
-index ad76b25..f9557ac 100644
+index ad76b25..adb952c 100644
 --- a/src/chess/uciloop.cc
 +++ b/src/chess/uciloop.cc
 @@ -41,6 +41,7 @@
  #include "utils/logging.h"
  #include "utils/string.h"
  #include "version.h"
-+#include "qutex.hpp"
++#include "glue.hpp"
  
  namespace lczero {
  
@@ -91,7 +91,7 @@ index ad76b25..f9557ac 100644
  bool UciLoop::DispatchCommand(
      const std::string& command,
      const std::unordered_map<std::string, std::string>& params) {
-@@ -219,11 +230,10 @@ void UciLoop::SendResponse(const std::string& response) {
+@@ -219,11 +230,8 @@ void UciLoop::SendResponse(const std::string& response) {
  }
  
  void UciLoop::SendResponses(const std::vector<std::string>& responses) {
@@ -100,10 +100,8 @@ index ad76b25..f9557ac 100644
 -  for (auto& response : responses) {
 -    LOGFILE << "<< " << response;
 -    std::cout << response << std::endl;
-+  std::string all;
 +  for (auto it = responses.begin(); it != responses.end(); it++) {
-+    LOGFILE << "<< " << *it;
-+    zerofish::zeroOut.push(*it);
++    zerofish::zero_out(it->c_str());
    }
  }
  

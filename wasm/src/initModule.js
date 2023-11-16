@@ -1,6 +1,5 @@
 Module['listenFish'] = rsp => console.log('fish:', rsp); // attach listener here
 Module['listenZero'] = rsp => console.log('zero:', rsp); // attach listener here
-
 Module['zero'] = cmd => Module['uci'](cmd, false);
 Module['fish'] = cmd => Module['uci'](cmd, true);
 
@@ -20,9 +19,10 @@ Module['setZeroWeights'] = (weights /*: Uint8Array*/) => {
   _set_weights(heapWeights, weights.byteLength);
 };
 
-Module['print'] = cout => console.info(cout);
-Module['printErr'] = cerr => console.warn(cerr);
-Module['_exception'] = x => {
-  console.error(x);
-  // do something exceptional here since the emscripted c++ can't catch these.
+Module['print'] = cout => {
+  if (cout.startsWith('zero:')) Module['listenZero'](cout.slice(5));
+  else if (cout.startsWith('fish:')) Module['listenFish'](cout.slice(5));
+  else console.info(cout);
 };
+
+Module['printErr'] = cerr => console.error(cerr);

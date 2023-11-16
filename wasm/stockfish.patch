@@ -203,7 +203,7 @@ index b9d7231d..2fe457eb 100644
  
  } // namespace Stockfish
 diff --git a/src/misc.cpp b/src/misc.cpp
-index bbfa4061..2314ccb8 100644
+index bbfa4061..73626d51 100644
 --- a/src/misc.cpp
 +++ b/src/misc.cpp
 @@ -52,6 +52,8 @@ using fun8_t = bool(*)(HANDLE, BOOL, PTOKEN_PRIVILEGES, DWORD, PTOKEN_PRIVILEGES
@@ -219,7 +219,7 @@ index bbfa4061..2314ccb8 100644
  
  #include "misc.h"
  #include "thread.h"
-+#include "qutex.hpp"
++#include "glue.hpp"
  
  using namespace std;
  
@@ -260,7 +260,7 @@ index bbfa4061..2314ccb8 100644
 +    fish_cout.str("");
 +    fish_cout.clear();
 +    sstream_mutex.unlock();
-+    zerofish::fishOut.push(response);
++    zerofish::fish_out(response.c_str());
 +  }
    return os;
  }
@@ -748,10 +748,21 @@ index c680393e..ab56fbc6 100644
    // and call 'go' again without setting a new position states.get() == nullptr.
    assert(states.get() || setupStates.get());
 diff --git a/src/tt.cpp b/src/tt.cpp
-index 3339c993..198ee255 100644
+index 3339c993..72d7cbb7 100644
 --- a/src/tt.cpp
 +++ b/src/tt.cpp
-@@ -85,6 +85,10 @@ void TranspositionTable::resize(size_t mbSize) {
+@@ -62,6 +62,10 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev)
+ 
+ void TranspositionTable::resize(size_t mbSize) {
+ 
++  std::memset(table, 0, clusterCount * sizeof(Cluster));
++  // no new threads for wasm, otherwise terrible things.
++  return;
++
+   Threads.main()->wait_for_search_finished();
+ 
+   aligned_large_pages_free(table);
+@@ -85,6 +89,10 @@ void TranspositionTable::resize(size_t mbSize) {
  
  void TranspositionTable::clear() {
  
