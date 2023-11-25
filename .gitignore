@@ -6,6 +6,7 @@ dist/
 node_modules/
 **.o
 .vscode/
+.metals/
 /?
 .DS_Store
 *.yaml

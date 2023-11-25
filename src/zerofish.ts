@@ -10,14 +10,14 @@ export interface FishOpts {
   ms?: number;
 }
 
-export type PV = { moves: string[]; score: number; depth: number };
+export type Score = { moves: string[]; score: number; depth?: number };
 
 export interface Zerofish {
   setNet: (name: string, weights: Uint8Array) => void;
   netName?: string;
   setSearch: (fishSearch: FishOpts) => void;
   goZero: (fen: string) => Promise<string>;
-  goFish: (fen: string, opts?: FishOpts) => Promise<PV[]>;
+  goFish: (fen: string, opts?: FishOpts) => Promise<Score /* pv */[] /* depth */[]>;
   quit: () => void;
   stop: () => void;
   reset: () => void;
@@ -74,28 +74,30 @@ export default async function initModule({ root, net, search }: ZerofishOpts = {
       if (this.netName) wasm.zero('ucinewgame');
     }
     goFish(fen: string, opts = this.search) {
-      return new Promise<PV[]>(resolve => {
-        const numPvs = opts?.pvs || 1;
-        const depth = opts?.depth || 12;
-        const pvs: PV[] = Array.from({ length: opts?.pvs || 1 }, () => ({ moves: [], score: 0, depth: 0 }));
+      return new Promise<Score /* pv */[] /* depth */[]>(resolve => {
+        const numPvs = opts?.pvs ?? 1;
+        const pvs: Score[][] = Array.from({ length: opts?.pvs ?? 1 }, () => []);
         wasm['listenFish'] = (msg: string) => {
           for (const line of msg.split('\n')) {
             if (line === '') continue;
             const tokens = line.split(' ');
             if (tokens[0] === 'bestmove') resolve(pvs.slice());
             else if (tokens[0] === 'info') {
-              pvs[parseInt(tokens[6]) - 1] = {
-                moves: tokens.slice(21),
-                score: parseInt(tokens[9]),
-                depth: parseInt(tokens[2]),
-              };
+              const depth = parseInt(tokens[2]);
+              const byDepth: Score[] = pvs[parseInt(tokens[6]) - 1];
+              if (depth > byDepth.length)
+                byDepth.push({
+                  moves: tokens.slice(21),
+                  score: parseInt(tokens[9]),
+                  depth,
+                });
             } else console.warn('unknown line', line);
           }
         };
         wasm.fish(`setoption name MultiPv value ${numPvs}`);
         wasm.fish(`position fen ${fen}`);
         if (opts?.ms) wasm.fish(`go movetime ${opts?.ms}`);
-        else wasm.fish(`go depth ${depth}`);
+        else wasm.fish(`go depth ${opts?.depth ?? 12}`);
       });
     }
   })();

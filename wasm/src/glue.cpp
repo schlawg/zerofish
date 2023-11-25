@@ -51,11 +51,11 @@ struct CommandIn {
 
 Qutex<CommandIn> inQ;
 
-void zerofish::zero_out(const char *str) {
+void zerofish::zero_out(const std::string& str) {
   std::cout << "zero:" << str << std::endl;
 }
 
-void zerofish::fish_out(const char *str) {
+void zerofish::fish_out(const std::string& str) {
   std::cout << "fish:" << str << std::endl;
 }
 

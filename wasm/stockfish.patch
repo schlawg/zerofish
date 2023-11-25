@@ -1,5 +1,5 @@
 diff --git a/src/evaluate.cpp b/src/evaluate.cpp
-index 35d05427..7a23c0b4 100644
+index 35d0542..7a23c0b 100644
 --- a/src/evaluate.cpp
 +++ b/src/evaluate.cpp
 @@ -35,118 +35,11 @@
@@ -177,7 +177,7 @@ index 35d05427..7a23c0b4 100644
  
    return ss.str();
 diff --git a/src/evaluate.h b/src/evaluate.h
-index b9d7231d..2fe457eb 100644
+index b9d7231..2fe457e 100644
 --- a/src/evaluate.h
 +++ b/src/evaluate.h
 @@ -33,21 +33,6 @@ namespace Eval {
@@ -203,7 +203,7 @@ index b9d7231d..2fe457eb 100644
  
  } // namespace Stockfish
 diff --git a/src/misc.cpp b/src/misc.cpp
-index bbfa4061..73626d51 100644
+index bbfa406..86db205 100644
 --- a/src/misc.cpp
 +++ b/src/misc.cpp
 @@ -52,6 +52,8 @@ using fun8_t = bool(*)(HANDLE, BOOL, PTOKEN_PRIVILEGES, DWORD, PTOKEN_PRIVILEGES
@@ -223,16 +223,7 @@ index bbfa4061..73626d51 100644
  
  using namespace std;
  
-@@ -91,6 +94,8 @@ struct Tie: public streambuf { // MSVC requires split streambuf for cin and cout
-   int uflow() override { return log(buf->sbumpc(), ">> "); }
- 
-   streambuf *buf, *logBuf;
-+  using std::streambuf::seekpos;
-+  using std::streambuf::seekoff;
- 
-   int log(int c, const char* prefix) {
- 
-@@ -391,20 +396,18 @@ void dbg_print() {
+@@ -391,20 +394,18 @@ void dbg_print() {
          }
  }
  
@@ -260,13 +251,13 @@ index bbfa4061..73626d51 100644
 +    fish_cout.str("");
 +    fish_cout.clear();
 +    sstream_mutex.unlock();
-+    zerofish::fish_out(response.c_str());
++    zerofish::fish_out(response);
 +  }
    return os;
  }
  
 diff --git a/src/misc.h b/src/misc.h
-index 69d470c2..0f1795ae 100644
+index 69d470c..0f1795a 100644
 --- a/src/misc.h
 +++ b/src/misc.h
 @@ -22,6 +22,7 @@
@@ -297,7 +288,7 @@ index 69d470c2..0f1795ae 100644
  // align_ptr_up() : get the first aligned element of an array.
  // ptr must point to an array of size at least `sizeof(T) * N + alignment` bytes,
 diff --git a/src/position.cpp b/src/position.cpp
-index 2a9d798f..d3e446d8 100644
+index 2a9d798..d3e446d 100644
 --- a/src/position.cpp
 +++ b/src/position.cpp
 @@ -31,7 +31,6 @@
@@ -427,7 +418,7 @@ index 2a9d798f..d3e446d8 100644
    {
        st->key ^= Zobrist::enpassant[file_of(st->epSquare)];
 diff --git a/src/position.h b/src/position.h
-index 2e6014db..0c9fdeed 100644
+index 2e6014d..0c9fdee 100644
 --- a/src/position.h
 +++ b/src/position.h
 @@ -29,8 +29,6 @@
@@ -473,7 +464,7 @@ index 2e6014db..0c9fdeed 100644
  
  #endif // #ifndef POSITION_H_INCLUDED
 diff --git a/src/search.cpp b/src/search.cpp
-index 740ad71e..354e2ecc 100644
+index 740ad71..1737f8b 100644
 --- a/src/search.cpp
 +++ b/src/search.cpp
 @@ -33,8 +33,6 @@
@@ -639,13 +630,7 @@ index 740ad71e..354e2ecc 100644
  
      TTEntry* tte;
      Key posKey;
-@@ -1854,12 +1780,12 @@ void MainThread::check_time() {
- string UCI::pv(const Position& pos, Depth depth) {
- 
-   std::stringstream ss;
--  TimePoint elapsed = Time.elapsed() + 1;
-+  TimePoint elapsed = std::max(Time.elapsed() + 1, TimePoint(1));
-   const RootMoves& rootMoves = pos.this_thread()->rootMoves;
+@@ -1859,7 +1785,7 @@ string UCI::pv(const Position& pos, Depth depth) {
    size_t pvIdx = pos.this_thread()->pvIdx;
    size_t multiPV = std::min((size_t)Options["MultiPV"], rootMoves.size());
    uint64_t nodesSearched = Threads.nodes_searched();
@@ -734,7 +719,7 @@ index 740ad71e..354e2ecc 100644
  
  } // namespace Stockfish
 diff --git a/src/thread.cpp b/src/thread.cpp
-index c680393e..ab56fbc6 100644
+index c680393..ab56fbc 100644
 --- a/src/thread.cpp
 +++ b/src/thread.cpp
 @@ -182,9 +182,6 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states,
@@ -747,34 +732,8 @@ index c680393e..ab56fbc6 100644
    // After ownership transfer 'states' becomes empty, so if we stop the search
    // and call 'go' again without setting a new position states.get() == nullptr.
    assert(states.get() || setupStates.get());
-diff --git a/src/tt.cpp b/src/tt.cpp
-index 3339c993..72d7cbb7 100644
---- a/src/tt.cpp
-+++ b/src/tt.cpp
-@@ -62,6 +62,10 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev)
- 
- void TranspositionTable::resize(size_t mbSize) {
- 
-+  std::memset(table, 0, clusterCount * sizeof(Cluster));
-+  // no new threads for wasm, otherwise terrible things.
-+  return;
-+
-   Threads.main()->wait_for_search_finished();
- 
-   aligned_large_pages_free(table);
-@@ -85,6 +89,10 @@ void TranspositionTable::resize(size_t mbSize) {
- 
- void TranspositionTable::clear() {
- 
-+  std::memset(table, 0, clusterCount * sizeof(Cluster));
-+  // no new threads for wasm, otherwise terrible things.
-+  return;
-+
-   std::vector<std::thread> threads;
- 
-   for (size_t idx = 0; idx < size_t(Options["Threads"]); ++idx)
 diff --git a/src/types.h b/src/types.h
-index 06b0a059..afd366fc 100644
+index 06b0a05..afd366f 100644
 --- a/src/types.h
 +++ b/src/types.h
 @@ -487,5 +487,3 @@ constexpr Key make_key(uint64_t seed) {
@@ -784,7 +743,7 @@ index 06b0a059..afd366fc 100644
 -
 -#include "tune.h" // Global visibility to tuning setup
 diff --git a/src/uci.cpp b/src/uci.cpp
-index ed16f24c..20396de3 100644
+index ed16f24..20396de 100644
 --- a/src/uci.cpp
 +++ b/src/uci.cpp
 @@ -31,8 +31,6 @@
@@ -852,7 +811,7 @@ index ed16f24c..20396de3 100644
            sync_cout << "\nStockfish is a powerful chess engine for playing and analyzing."
                         "\nIt is released as free software licensed under the GNU GPLv3 License."
 diff --git a/src/uci.h b/src/uci.h
-index 8f1be00c..1413cf24 100644
+index 8f1be00..1413cf2 100644
 --- a/src/uci.h
 +++ b/src/uci.h
 @@ -76,6 +76,7 @@ private:
@@ -864,7 +823,7 @@ index 8f1be00c..1413cf24 100644
  std::string square(Square s);
  std::string move(Move m, bool chess960);
 diff --git a/src/ucioption.cpp b/src/ucioption.cpp
-index f6342e5c..3e7d2288 100644
+index f6342e5..3e7d228 100644
 --- a/src/ucioption.cpp
 +++ b/src/ucioption.cpp
 @@ -27,7 +27,6 @@
