@@ -51,12 +51,19 @@ struct CommandIn {
 
 Qutex<CommandIn> inQ;
 
+void addressTo(const std::string& str, const char *dest) {
+  for (size_t pos = 0, next; pos < str.size(); pos = next + 1) {
+    next = str.find('\n', pos);
+    std::cout << dest << ':' << str.substr(pos, next - pos) << std::endl;
+  }
+}
+
 void zerofish::zero_out(const std::string& str) {
-  std::cout << "zero:" << str << std::endl;
+  addressTo(str, "zero");
 }
 
 void zerofish::fish_out(const std::string& str) {
-  std::cout << "fish:" << str << std::endl;
+  addressTo(str, "fish");
 }
 
 EMSCRIPTEN_KEEPALIVE int main() {
