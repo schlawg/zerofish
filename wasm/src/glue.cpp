@@ -50,20 +50,22 @@ struct CommandIn {
 };
 
 Qutex<CommandIn> inQ;
+std::mutex outM;
 
-void addressTo(const std::string& str, const char *dest) {
-  for (size_t pos = 0, next; pos < str.size(); pos = next + 1) {
+void writeTo(const std::string& str, const char *dest) {
+  std::unique_lock<std::mutex> lock(outM);
+  for (size_t pos = 0, next = 0; pos < str.size() && next != std::string::npos; pos = next + 1) {
     next = str.find('\n', pos);
     std::cout << dest << ':' << str.substr(pos, next - pos) << std::endl;
   }
 }
 
 void zerofish::zero_out(const std::string& str) {
-  addressTo(str, "zero");
+  writeTo(str, "zero");
 }
 
 void zerofish::fish_out(const std::string& str) {
-  addressTo(str, "fish");
+  writeTo(str, "fish");
 }
 
 EMSCRIPTEN_KEEPALIVE int main() {

@@ -10,7 +10,7 @@ export interface FishOpts {
   ms?: number;
 }
 
-export type Score = { moves: string[]; score: number; depth?: number };
+export type Score = { moves: string[]; score: number; depth: number };
 
 export interface Zerofish {
   setNet: (name: string, weights: Uint8Array) => void;
@@ -50,13 +50,10 @@ export default async function initModule({ root, net, search }: ZerofishOpts = {
       return new Promise<string>((resolve, reject) => {
         if (!this.netName) return reject('unitialized');
         wasm['listenZero'] = (msg: string) => {
-          for (const line of msg.split('\n')) {
-            if (line === '') continue;
-            const tokens = line.split(' ');
-            if (tokens[0] === 'bestmove') resolve(tokens[1]);
-          }
+          if (!msg) return;
+          const tokens = msg.split(' ');
+          if (tokens[0] === 'bestmove') resolve(tokens[1]);
         };
-        console.log(String(wasm['listenZero']));
         wasm.zero(`position fen ${fen}`);
         wasm.zero(`go nodes 1`);
       });
@@ -84,10 +81,13 @@ export default async function initModule({ root, net, search }: ZerofishOpts = {
           else if (tokens[0] === 'info') {
             const depth = parseInt(tokens[2]);
             const byDepth: Score[] = pvs[parseInt(tokens[6]) - 1];
-            if (depth > byDepth.length)
+            const moveIndex = tokens.indexOf('pv') + 1;
+            const cpIndex = tokens.indexOf('cp') + 1;
+
+            if (depth > byDepth.length && moveIndex > 0)
               byDepth.push({
-                moves: tokens.slice(21),
-                score: parseInt(tokens[9]),
+                moves: tokens.slice(moveIndex),
+                score: parseInt(tokens[cpIndex]),
                 depth,
               });
           } else console.warn('unknown line', line);
