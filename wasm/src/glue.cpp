@@ -1,10 +1,12 @@
 #include <emscripten.h>
+#include <iostream>
+#include <thread>
+#include "glue.hpp"
 
 #include "position.h"
 #include "uci.h"
 #include "thread.h"
 #include "engine.h"
-#include "glue.hpp"
 
 enum Type { ZERO, FISH, QUIT};
 
@@ -52,7 +54,7 @@ struct CommandIn {
 Qutex<CommandIn> inQ;
 std::mutex outM;
 
-void writeTo(const std::string& str, const char *dest) {
+void writeTo(const char *dest, const std::string& str) {
   std::unique_lock<std::mutex> lock(outM);
   for (size_t pos = 0, next = 0; pos < str.size() && next != std::string::npos; pos = next + 1) {
     next = str.find('\n', pos);
@@ -61,11 +63,11 @@ void writeTo(const std::string& str, const char *dest) {
 }
 
 void zerofish::zero_out(const std::string& str) {
-  writeTo(str, "zero");
+  writeTo("zero", str);
 }
 
 void zerofish::fish_out(const std::string& str) {
-  writeTo(str, "fish");
+  writeTo("fish", str);
 }
 
 EMSCRIPTEN_KEEPALIVE int main() {
@@ -78,9 +80,10 @@ EMSCRIPTEN_KEEPALIVE int main() {
   Stockfish::Threads.set(4);
   Stockfish::Position pos;
   Stockfish::StateListPtr states(new std::deque<Stockfish::StateInfo>(1));
-  pos.set("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false, &states->back(), Stockfish::Threads.main());
+  pos.set(lczero::ChessBoard::kStartposFen, false, &states->back(), Stockfish::Threads.main());
   lczero::InitializeMagicBitboards();
   lczero::EngineLoop lc0;
+
   while(true) {
     auto cmd = inQ.pop();
     if (cmd.type == ZERO) {
@@ -103,6 +106,5 @@ extern "C" EMSCRIPTEN_KEEPALIVE void set_weights(const unsigned char *buf, size_
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE void quit() {
-  emscripten_cancel_main_loop();
   inQ.push(QUIT, CommandIn());
 }

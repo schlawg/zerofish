@@ -10,8 +10,8 @@ function main() {
 
   CXX_FLAGS=(
     "${OPT_FLAGS[@]}"
-    -Ilc0/src
     -IStockfish/src
+    -Ilc0/src
     -Ieigen
     -Isrc
     -Wno-deprecated-copy-with-user-provided-copy
@@ -38,15 +38,19 @@ function main() {
   LD_FLAGS=(
     "${CXX_FLAGS[@]}"
     --pre-js=src/initModule.js
-    -sEXPORTED_FUNCTIONS=['_free','_malloc','_main','_set_weights','_uci']
+    -sEXPORTED_FUNCTIONS=[_free,_malloc,_main,_set_weights,_uci,_quit]
+    -sEXPORTED_RUNTIME_METHODS=[stringToUTF8,lengthBytesUTF8]
+    -sINCOMING_MODULE_JS_API=[print,printErr,wasmMemory,buffer,instantiateWasm]
     -sINITIAL_MEMORY=256MB
     -sSTACK_SIZE=1MB
-    -sEXPORT_ES6
     -sSTRICT
+    -sFILESYSTEM=0
     -sPROXY_TO_PTHREAD
-    -sALLOW_MEMORY_GROWTH=1
+    -sPTHREAD_POOL_SIZE=8
+    -sALLOW_MEMORY_GROWTH
     -sALLOW_BLOCKING_ON_MAIN_THREAD=0
-    -sDISABLE_EXCEPTION_CATCHING=0
+    -sEXIT_RUNTIME
+    -sEXPORT_ES6
     -sEXPORT_NAME=zerofish
     -sENVIRONMENT=$ENVIRONMENT
     -Wno-pthreads-mem-growth
@@ -87,9 +91,9 @@ function main() {
   pushd wasm > /dev/null
   . fetchSources.sh
   if [ $LOCAL ]; then
-    make -j$(grep -c ^processor /proc/cpuinfo)
+    make -j
   else
-    docker run --rm -u $(id -u):$(id -g) -v "$PWD":/zf -w /zf emscripten/emsdk:3.1.43 sh -c 'make -j$(nproc)'
+    docker run --rm -u $(id -u):$(id -g) -v "$PWD":/zf -w /zf emscripten/emsdk:3.1.43 sh -c 'make -j'
   fi
   mv -f zerofishEngine.* "$OUT_DIR"
   popd > /dev/null

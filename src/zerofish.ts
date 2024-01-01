@@ -77,26 +77,39 @@ export default async function initModule({ root, net, search }: ZerofishOpts = {
         const pvs: Score[][] = Array.from({ length: opts?.pvs ?? 1 }, () => []);
         wasm['listenFish'] = (line: string) => {
           const tokens = line.split(' ');
+          const shiftParse = (field: string) => {
+            while (tokens.length > 1) if (tokens.shift() === field) return parseInt(tokens.shift()!);
+          };
           if (tokens[0] === 'bestmove') resolve(pvs.slice());
-          else if (tokens[0] === 'info') {
-            const depth = parseInt(tokens[2]);
-            const byDepth: Score[] = pvs[parseInt(tokens[6]) - 1];
+          else if (tokens.shift() === 'info') {
+            if (tokens.length < 7) return;
+            const depth = shiftParse('depth')!;
+            const byDepth: Score[] = pvs[shiftParse('multipv')! - 1];
+            const score = shiftParse('cp')!;
             const moveIndex = tokens.indexOf('pv') + 1;
-            const cpIndex = tokens.indexOf('cp') + 1;
 
             if (depth > byDepth.length && moveIndex > 0)
               byDepth.push({
                 moves: tokens.slice(moveIndex),
-                score: parseInt(tokens[cpIndex]),
+                score,
                 depth,
               });
           } else console.warn('unknown line', line);
         };
-        wasm.fish(`setoption name MultiPv value ${numPvs}`);
+        wasm.fish(`setoption name multipv value ${numPvs}`);
         wasm.fish(`position fen ${fen}`);
         if (opts?.ms) wasm.fish(`go movetime ${opts.ms}`);
         else wasm.fish(`go depth ${opts?.depth ?? 12}`);
       });
     }
   })();
+
+  function ucinum(tokens: string[], field: string) {
+    return parseInt(ucival(tokens, field));
+  }
+
+  function ucival(tokens: string[], field: string) {
+    if (!tokens.length) return '';
+    return tokens[tokens.indexOf(field) + 1];
+  }
 }

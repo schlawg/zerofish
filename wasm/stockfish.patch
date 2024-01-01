@@ -732,6 +732,20 @@ index c680393..ab56fbc 100644
    // After ownership transfer 'states' becomes empty, so if we stop the search
    // and call 'go' again without setting a new position states.get() == nullptr.
    assert(states.get() || setupStates.get());
+diff --git a/src/tt.cpp b/src/tt.cpp
+index 3339c99..c2038f7 100644
+--- a/src/tt.cpp
++++ b/src/tt.cpp
+@@ -84,6 +84,9 @@ void TranspositionTable::resize(size_t mbSize) {
+ //  in a multi-threaded way.
+ 
+ void TranspositionTable::clear() {
++  std::memset(table, 0, clusterCount * sizeof(Cluster));
++  // no new threads for wasm, otherwise terrible things.
++  return;
+ 
+   std::vector<std::thread> threads;
+ 
 diff --git a/src/types.h b/src/types.h
 index 06b0a05..afd366f 100644
 --- a/src/types.h

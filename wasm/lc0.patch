@@ -120,10 +120,10 @@ index bae8e3d..558d264 100644
    void SendResponse(const std::string& response);
    // Sends responses to host ensuring they are received as a block.
 diff --git a/src/engine.cc b/src/engine.cc
-index a632ebb..dcafd65 100644
+index a632ebb..0261b74 100644
 --- a/src/engine.cc
 +++ b/src/engine.cc
-@@ -30,9 +30,11 @@
+@@ -30,15 +30,17 @@
  #include <algorithm>
  #include <cmath>
  #include <functional>
@@ -135,6 +135,13 @@ index a632ebb..dcafd65 100644
  #include "utils/configfile.h"
  #include "utils/logging.h"
  
+ namespace lczero {
+ namespace {
+-const int kDefaultThreads = 2;
++const int kDefaultThreads = 1;
+ 
+ const OptionId kThreadsOptionId{"threads", "Threads",
+                                 "Number of (CPU) worker threads to use.", 't'};
 @@ -99,7 +101,6 @@ void EngineController::PopulateOptions(OptionsParser* options) {
    options->Add<IntOption>(kNNCacheSizeId, 0, 999999999) = 2000000;
    SearchParams::Populate(options);
@@ -250,6 +257,19 @@ index 9743679..04976b9 100644
    void RunLoop() override;
    void CmdUci() override;
    void CmdIsReady() override;
+diff --git a/src/mcts/params.cc b/src/mcts/params.cc
+index 6fbc4cf..483151c 100644
+--- a/src/mcts/params.cc
++++ b/src/mcts/params.cc
+@@ -42,7 +42,7 @@
+ #define DEFAULT_MAX_PREFETCH 32
+ #endif
+ #ifndef DEFAULT_TASK_WORKERS
+-#define DEFAULT_TASK_WORKERS 4
++#define DEFAULT_TASK_WORKERS 0
+ #endif
+ 
+ namespace lczero {
 diff --git a/src/mcts/search.cc b/src/mcts/search.cc
 index 6fe8d1c..4267b3b 100644
 --- a/src/mcts/search.cc
