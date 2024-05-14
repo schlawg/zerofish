@@ -39,7 +39,7 @@ function main() {
     "${CXX_FLAGS[@]}"
     --pre-js=src/initModule.js
     -sEXPORTED_FUNCTIONS=[_free,_malloc,_main,_set_weights,_uci,_quit]
-    -sEXPORTED_RUNTIME_METHODS=[stringToUTF8,lengthBytesUTF8]
+    -sEXPORTED_RUNTIME_METHODS=[stringToUTF8,lengthBytesUTF8,HEAPU8]
     -sINCOMING_MODULE_JS_API=[print,printErr,wasmMemory,buffer,instantiateWasm]
     -sINITIAL_MEMORY=256MB
     -sSTACK_SIZE=1MB
@@ -93,17 +93,10 @@ function main() {
   if [ $LOCAL ]; then
     make -j
   else
-    docker run --rm -u $(id -u):$(id -g) -v "$PWD":/zf -w /zf emscripten/emsdk:3.1.43 sh -c 'make -j'
+    docker run --rm -u $(id -u):$(id -g) -v "$PWD":/zf -w /zf emscripten/emsdk:3.1.59 sh -c 'make -j'
   fi
   mv -f zerofishEngine.* "$OUT_DIR"
   popd > /dev/null
-  maybeCreateRequire "$OUT_DIR/zerofishEngine.worker.js"
-}
-
-function maybeCreateRequire() { # coax the es6 emscripten output into working with nodejs
-  if [ "$ENVIRONMENT" != "node" ]; then return; fi
-  cat wasm/src/createRequire.js "$1" > "$1.tmp"
-  mv "$1.tmp" "$1"
 }
 
 function parseArgs() {
