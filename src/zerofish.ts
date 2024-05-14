@@ -55,7 +55,7 @@ export default async function initModule({ root, net, search }: ZerofishOpts = {
           if (tokens[0] === 'bestmove') resolve(tokens[1]);
         };
         wasm.zero(`position fen ${fen}`);
-        wasm.zero(`go nodes 1`);
+        wasm.zero(`go nodes 1`); // TODO - evilgyal and tinygyal need an actual search
       });
     }
     quit() {
