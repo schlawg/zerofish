@@ -1,16 +1,16 @@
 {
   "name": "zerofish",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "author": "T-bone Duplexus",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "main": "dist/zerofish.js",
   "dependencies": {
-    "@types/node": "^20.9.0",
-    "@types/web": "^0.0.119",
-    "@types/emscripten": "^1.39.10",
+    "@types/node": "^20.12.11",
+    "@types/web": "^0.0.144",
+    "@types/emscripten": "^1.39.12",
     "prettier": "3.1.0",
-    "typescript": "^5.2.2"
+    "typescript": "^5.4.5"
   },
   "scripts": {
     "format": "prettier --write .",
@@ -22,7 +22,6 @@
     "dist/zerofish.d.ts",
     "dist/zerofish.js",
     "dist/zerofishEngine.wasm",
-    "dist/zerofishEngine.js",
-    "dist/zerofishEngine.worker.js"
+    "dist/zerofishEngine.js"
   ]
 }

@@ -1,7 +1,7 @@
 {
   "include": ["src"],
   "exclude": [],
-  
+
   "compilerOptions": {
     "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
@@ -12,7 +12,7 @@
     "outDir": "./dist",
     "baseUrl": ".",
     "paths": {
-      "zerofishEngine": ["./dist/zerofishEngine.js"],
+      "zerofishEngine": ["./dist/zerofishEngine.js"]
     },
     "skipLibCheck": true,
     "noImplicitThis": false,
