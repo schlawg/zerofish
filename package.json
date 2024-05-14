@@ -1,6 +1,6 @@
 {
   "name": "zerofish",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "author": "T-bone Duplexus",
   "license": "AGPL-3.0-or-later",
   "type": "module",
@@ -22,7 +22,6 @@
     "dist/zerofish.d.ts",
     "dist/zerofish.js",
     "dist/zerofishEngine.wasm",
-    "dist/zerofishEngine.js",
-    "dist/zerofishEngine.worker.js"
+    "dist/zerofishEngine.js"
   ]
 }
