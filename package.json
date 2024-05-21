@@ -7,7 +7,7 @@
   "main": "dist/zerofish.js",
   "dependencies": {
     "@types/node": "^20.12.12",
-    "@types/web": "^0.0.144",
+    "@types/web": "^0.0.147",
     "@types/emscripten": "^1.39.12",
     "prettier": "3.0.2",
     "typescript": "^5.4.5"
