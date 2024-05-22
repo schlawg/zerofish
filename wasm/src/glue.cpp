@@ -70,17 +70,22 @@ void zerofish::fish_out(const std::string& str) {
   writeTo("fish", str);
 }
 
+namespace PSQT {
+  void init();
+}
+
 EMSCRIPTEN_KEEPALIVE int main() {
-  Stockfish::UCI::init(Stockfish::Options);
-  Stockfish::PSQT::init();
-  Stockfish::Bitboards::init();
-  Stockfish::Position::init();
-  Stockfish::Bitbases::init();
-  Stockfish::Endgames::init();
-  Stockfish::Threads.set(4);
-  Stockfish::Position pos;
-  Stockfish::StateListPtr states(new std::deque<Stockfish::StateInfo>(1));
-  pos.set(lczero::ChessBoard::kStartposFen, false, &states->back(), Stockfish::Threads.main());
+  UCI::init(Options);
+  PSQT::init();
+  Bitboards::init();
+  Position::init();
+  Bitbases::init();
+  Endgames::init();
+  Threads.set(4);
+  Search::clear();
+  Position pos;
+  StateListPtr states(new std::deque<StateInfo>(1));
+  pos.set(lczero::ChessBoard::kStartposFen, false, &states->back(), Threads.main());
   lczero::InitializeMagicBitboards();
   lczero::EngineLoop lc0;
 
@@ -90,10 +95,10 @@ EMSCRIPTEN_KEEPALIVE int main() {
       if (cmd.data.weightsBuffer) lc0.SetWeightsBuffer(cmd.data.weightsBuffer, cmd.data.weightsSize);
       else lc0.ProcessCommand(cmd.data.uci);
     }
-    else if (cmd.type == FISH) Stockfish::UCI::process_command(cmd.data.uci, pos, states);
+    else if (cmd.type == FISH) UCI::process_command(cmd.data.uci, pos, states);
     else break;
   }
-  Stockfish::Threads.set(0);
+  Threads.set(0);
   return 0;
 }
 

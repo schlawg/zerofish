@@ -3,7 +3,7 @@
 cd "$(dirname "${BASH_SOURCE:-$0}")"
 
 if [ ! -d "Stockfish" ]; then 
-  git clone -b sf_16 --depth 1 https://github.com/official-stockfish/Stockfish
+  git clone -b SF_classical --depth 1 https://github.com/official-stockfish/Stockfish
   git -C Stockfish apply ../stockfish.patch
 fi
 if [ ! -d "eigen" ]; then

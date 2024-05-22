@@ -1,250 +1,42 @@
-diff --git a/src/evaluate.cpp b/src/evaluate.cpp
-index 35d0542..7a23c0b 100644
---- a/src/evaluate.cpp
-+++ b/src/evaluate.cpp
-@@ -35,118 +35,11 @@
- #include "thread.h"
- #include "timeman.h"
- #include "uci.h"
--#include "incbin/incbin.h"
--#include "nnue/evaluate_nnue.h"
--
--// Macro to embed the default efficiently updatable neural network (NNUE) file
--// data in the engine binary (using incbin.h, by Dale Weiler).
--// This macro invocation will declare the following three variables
--//     const unsigned char        gEmbeddedNNUEData[];  // a pointer to the embedded data
--//     const unsigned char *const gEmbeddedNNUEEnd;     // a marker to the end
--//     const unsigned int         gEmbeddedNNUESize;    // the size of the embedded file
--// Note that this does not work in Microsoft Visual Studio.
--#if !defined(_MSC_VER) && !defined(NNUE_EMBEDDING_OFF)
--  INCBIN(EmbeddedNNUE, EvalFileDefaultName);
--#else
--  const unsigned char        gEmbeddedNNUEData[1] = {0x0};
--  const unsigned char *const gEmbeddedNNUEEnd = &gEmbeddedNNUEData[1];
--  const unsigned int         gEmbeddedNNUESize = 1;
--#endif
--
- 
- using namespace std;
- 
- namespace Stockfish {
- 
--namespace Eval {
--
--  bool useNNUE;
--  string currentEvalFileName = "None";
--
--  /// NNUE::init() tries to load a NNUE network at startup time, or when the engine
--  /// receives a UCI command "setoption name EvalFile value nn-[a-z0-9]{12}.nnue"
--  /// The name of the NNUE network is always retrieved from the EvalFile option.
--  /// We search the given network in three locations: internally (the default
--  /// network may be embedded in the binary), in the active working directory and
--  /// in the engine directory. Distro packagers may define the DEFAULT_NNUE_DIRECTORY
--  /// variable to have the engine search in a special directory in their distro.
--
--  void NNUE::init() {
--
--    useNNUE = Options["Use NNUE"];
--    if (!useNNUE)
--        return;
--
--    string eval_file = string(Options["EvalFile"]);
--    if (eval_file.empty())
--        eval_file = EvalFileDefaultName;
--
--    #if defined(DEFAULT_NNUE_DIRECTORY)
--    vector<string> dirs = { "<internal>" , "" , CommandLine::binaryDirectory , stringify(DEFAULT_NNUE_DIRECTORY) };
--    #else
--    vector<string> dirs = { "<internal>" , "" , CommandLine::binaryDirectory };
--    #endif
--
--    for (const string& directory : dirs)
--        if (currentEvalFileName != eval_file)
--        {
--            if (directory != "<internal>")
--            {
--                ifstream stream(directory + eval_file, ios::binary);
--                if (NNUE::load_eval(eval_file, stream))
--                    currentEvalFileName = eval_file;
--            }
--
--            if (directory == "<internal>" && eval_file == EvalFileDefaultName)
--            {
--                // C++ way to prepare a buffer for a memory stream
--                class MemoryBuffer : public basic_streambuf<char> {
--                    public: MemoryBuffer(char* p, size_t n) { setg(p, p, p + n); setp(p, p + n); }
--                };
--
--                MemoryBuffer buffer(const_cast<char*>(reinterpret_cast<const char*>(gEmbeddedNNUEData)),
--                                    size_t(gEmbeddedNNUESize));
--                (void) gEmbeddedNNUEEnd; // Silence warning on unused variable
--
--                istream stream(&buffer);
--                if (NNUE::load_eval(eval_file, stream))
--                    currentEvalFileName = eval_file;
--            }
--        }
--  }
--
--  /// NNUE::verify() verifies that the last net used was loaded successfully
--  void NNUE::verify() {
--
--    string eval_file = string(Options["EvalFile"]);
--    if (eval_file.empty())
--        eval_file = EvalFileDefaultName;
--
--    if (useNNUE && currentEvalFileName != eval_file)
--    {
--
--        string msg1 = "If the UCI option \"Use NNUE\" is set to true, network evaluation parameters compatible with the engine must be available.";
--        string msg2 = "The option is set to true, but the network file " + eval_file + " was not loaded successfully.";
--        string msg3 = "The UCI option EvalFile might need to specify the full path, including the directory name, to the network file.";
--        string msg4 = "The default net can be downloaded from: https://tests.stockfishchess.org/api/nn/" + std::string(EvalFileDefaultName);
--        string msg5 = "The engine will be terminated now.";
--
--        sync_cout << "info string ERROR: " << msg1 << sync_endl;
--        sync_cout << "info string ERROR: " << msg2 << sync_endl;
--        sync_cout << "info string ERROR: " << msg3 << sync_endl;
--        sync_cout << "info string ERROR: " << msg4 << sync_endl;
--        sync_cout << "info string ERROR: " << msg5 << sync_endl;
--
--        exit(EXIT_FAILURE);
--    }
--
--    if (useNNUE)
--        sync_cout << "info string NNUE evaluation using " << eval_file << " enabled" << sync_endl;
--    else
--        sync_cout << "info string classical evaluation enabled" << sync_endl;
--  }
--}
--
- namespace Trace {
- 
-   enum Tracing { NO_TRACE, TRACE };
-@@ -1053,27 +946,7 @@ Value Eval::evaluate(const Position& pos) {
-   Value v;
-   Value psq = pos.psq_eg_stm();
- 
--  // We use the much less accurate but faster Classical eval when the NNUE
--  // option is set to false. Otherwise we use the NNUE eval unless the
--  // PSQ advantage is decisive. (~4 Elo at STC, 1 Elo at LTC)
--  bool useClassical = !useNNUE || abs(psq) > 2048;
--
--  if (useClassical)
--      v = Evaluation<NO_TRACE>(pos).value();
--  else
--  {
--      int nnueComplexity;
--      int npm = pos.non_pawn_material() / 64;
--
--      Color stm = pos.side_to_move();
--      Value optimism = pos.this_thread()->optimism[stm];
--
--      Value nnue = NNUE::evaluate(pos, true, &nnueComplexity);
--
--      // Blend optimism with nnue complexity and (semi)classical complexity
--      optimism += optimism * (nnueComplexity + abs(psq - nnue)) / 512;
--      v = (nnue * (945 + npm) + optimism * (150 + npm)) / 1024;
--  }
-+  v = Evaluation<NO_TRACE>(pos).value();
- 
-   // Damp down the evaluation linearly when shuffling
-   v = v * (200 - pos.rule50_count()) / 214;
-@@ -1131,25 +1004,14 @@ std::string Eval::trace(Position& pos) {
-      << "|      Total | " << Term(TOTAL)
-      << "+------------+-------------+-------------+-------------+\n";
- 
--  if (Eval::useNNUE)
--      ss << '\n' << NNUE::trace(pos) << '\n';
--
-   ss << std::showpoint << std::showpos << std::fixed << std::setprecision(2) << std::setw(15);
- 
-   v = pos.side_to_move() == WHITE ? v : -v;
-   ss << "\nClassical evaluation   " << to_cp(v) << " (white side)\n";
--  if (Eval::useNNUE)
--  {
--      v = NNUE::evaluate(pos, false);
--      v = pos.side_to_move() == WHITE ? v : -v;
--      ss << "NNUE evaluation        " << to_cp(v) << " (white side)\n";
--  }
- 
-   v = evaluate(pos);
-   v = pos.side_to_move() == WHITE ? v : -v;
-   ss << "Final evaluation       " << to_cp(v) << " (white side)";
--  if (Eval::useNNUE)
--     ss << " [with scaled NNUE, hybrid, ...]";
-   ss << "\n";
- 
-   return ss.str();
-diff --git a/src/evaluate.h b/src/evaluate.h
-index b9d7231..2fe457e 100644
---- a/src/evaluate.h
-+++ b/src/evaluate.h
-@@ -33,21 +33,6 @@ namespace Eval {
-   std::string trace(Position& pos);
-   Value evaluate(const Position& pos);
- 
--  extern bool useNNUE;
--  extern std::string currentEvalFileName;
--
--  // The default net name MUST follow the format nn-[SHA256 first 12 digits].nnue
--  // for the build process (profile-build and fishtest) to work. Do not change the
--  // name of the macro, as it is used in the Makefile.
--  #define EvalFileDefaultName   "nn-5af11540bbfe.nnue"
--
--  namespace NNUE {
--
--    void init();
--    void verify();
--
--  } // namespace NNUE
--
- } // namespace Eval
- 
- } // namespace Stockfish
 diff --git a/src/misc.cpp b/src/misc.cpp
-index bbfa406..86db205 100644
+index 2bc05c5..c4af087 100644
 --- a/src/misc.cpp
 +++ b/src/misc.cpp
-@@ -52,6 +52,8 @@ using fun8_t = bool(*)(HANDLE, BOOL, PTOKEN_PRIVILEGES, DWORD, PTOKEN_PRIVILEGES
+@@ -46,6 +46,8 @@ typedef bool(*fun3_t)(HANDLE, CONST GROUP_AFFINITY*, PGROUP_AFFINITY);
+ #include <iostream>
  #include <sstream>
- #include <string_view>
  #include <vector>
 +#include <emscripten.h>
 +#include <emscripten/threading.h>
  
  #if defined(__linux__) && !defined(__ANDROID__)
  #include <stdlib.h>
-@@ -65,6 +67,7 @@ using fun8_t = bool(*)(HANDLE, BOOL, PTOKEN_PRIVILEGES, DWORD, PTOKEN_PRIVILEGES
+@@ -54,6 +56,8 @@ typedef bool(*fun3_t)(HANDLE, CONST GROUP_AFFINITY*, PGROUP_AFFINITY);
  
  #include "misc.h"
  #include "thread.h"
++#include "syzygy/tbprobe.h"
 +#include "glue.hpp"
  
  using namespace std;
  
-@@ -391,20 +394,18 @@ void dbg_print() {
-         }
- }
+@@ -249,19 +253,30 @@ void dbg_print() {
+ /// Used to serialize access to std::cout to avoid multiple threads writing at
+ /// the same time.
  
--
--/// Used to serialize access to std::cout to avoid multiple threads writing at
--/// the same time.
--
 -std::ostream& operator<<(std::ostream& os, SyncCout sc) {
--
++std::ostream& operator<<(std::ostream& os, FishCoutCommand cmd) {
+ 
 -  static std::mutex m;
--
++  static std::mutex sstream_mutex;
+ 
 -  if (sc == IO_LOCK)
 -      m.lock();
 -
 -  if (sc == IO_UNLOCK)
 -      m.unlock();
 -
-+std::ostream& operator<<(std::ostream& os, FishCoutCommand cmd) {
-+
-+  static std::mutex sstream_mutex;
-+  
+-  return os;
 +  if (cmd == FishCoutCommand::ACQUIRE) sstream_mutex.lock();
 +  if (cmd == FishCoutCommand::FLUSH) {
 +    string response = fish_cout.str();
@@ -253,272 +45,64 @@ index bbfa406..86db205 100644
 +    sstream_mutex.unlock();
 +    zerofish::fish_out(response);
 +  }
-   return os;
++ return os;
  }
  
++// stubs for tbprobe.cpp (so we don't need -sALLOW_UNIMPLEMENTED_SYSCALLS)
++namespace Tablebases {
++  int MaxCardinality = 0;
++  void     init(const std::string& paths) {}
++  WDLScore probe_wdl(Position& pos, ProbeState* result) { return WDLDraw; }
++  int      probe_dtz(Position& pos, ProbeState* result) { return 0; }
++  bool root_probe(Position& pos, Search::RootMoves& rootMoves) { return false; }
++  bool root_probe_wdl(Position& pos, Search::RootMoves& rootMoves) { return false; }
++}
+ 
+ /// Trampoline helper to avoid moving Logger to misc.h
+ void start_logger(const std::string& fname) { Logger::start(fname); }
 diff --git a/src/misc.h b/src/misc.h
-index 69d470c..0f1795a 100644
+index 373f1b7..15155be 100644
 --- a/src/misc.h
 +++ b/src/misc.h
-@@ -22,6 +22,7 @@
- #include <cassert>
- #include <chrono>
+@@ -26,6 +26,7 @@
  #include <ostream>
-+#include <sstream>
  #include <string>
  #include <vector>
- #include <cstdint>
-@@ -63,13 +64,12 @@ private:
-   std::vector<Entry> table = std::vector<Entry>(Size); // Allocate on the heap
++#include <sstream>
+ 
+ #include "types.h"
+ 
+@@ -59,11 +60,12 @@ private:
  };
  
-+enum FishCoutCommand { ACQUIRE, FLUSH };
-+std::ostream& operator<<(std::ostream&, FishCoutCommand);
-+inline std::stringstream fish_cout;
  
 -enum SyncCout { IO_LOCK, IO_UNLOCK };
 -std::ostream& operator<<(std::ostream&, SyncCout);
--
+ 
 -#define sync_cout std::cout << IO_LOCK
 -#define sync_endl std::endl << IO_UNLOCK
--
++enum FishCoutCommand { ACQUIRE, FLUSH };
++std::ostream& operator<<(std::ostream&, FishCoutCommand);
++inline std::stringstream fish_cout;
 +#define sync_cout fish_cout << FishCoutCommand::ACQUIRE
 +#define sync_endl FishCoutCommand::FLUSH
  
- // align_ptr_up() : get the first aligned element of an array.
- // ptr must point to an array of size at least `sizeof(T) * N + alignment` bytes,
-diff --git a/src/position.cpp b/src/position.cpp
-index 2a9d798..d3e446d 100644
---- a/src/position.cpp
-+++ b/src/position.cpp
-@@ -31,7 +31,6 @@
- #include "thread.h"
- #include "tt.h"
- #include "uci.h"
--#include "syzygy/tbprobe.h"
+ namespace Utility {
  
- using std::string;
- 
-@@ -76,21 +75,6 @@ std::ostream& operator<<(std::ostream& os, const Position& pos) {
-   for (Bitboard b = pos.checkers(); b; )
-       os << UCI::square(pop_lsb(b)) << " ";
- 
--  if (    int(Tablebases::MaxCardinality) >= popcount(pos.pieces())
--      && !pos.can_castle(ANY_CASTLING))
--  {
--      StateInfo st;
--      ASSERT_ALIGNED(&st, Eval::NNUE::CacheLineSize);
--
--      Position p;
--      p.set(pos.fen(), pos.is_chess960(), &st, pos.this_thread());
--      Tablebases::ProbeState s1, s2;
--      Tablebases::WDLScore wdl = Tablebases::probe_wdl(p, &s1);
--      int dtz = Tablebases::probe_dtz(p, &s2);
--      os << "\nTablebases WDL: " << std::setw(4) << wdl << " (" << s1 << ")"
--         << "\nTablebases DTZ: " << std::setw(4) << dtz << " (" << s2 << ")";
--  }
--
-   return os;
- }
- 
-@@ -700,12 +684,6 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
-   ++st->rule50;
-   ++st->pliesFromNull;
- 
--  // Used by NNUE
--  st->accumulator.computed[WHITE] = false;
--  st->accumulator.computed[BLACK] = false;
--  auto& dp = st->dirtyPiece;
--  dp.dirty_num = 1;
--
-   Color us = sideToMove;
-   Color them = ~us;
-   Square from = from_sq(m);
-@@ -753,14 +731,6 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
-       else
-           st->nonPawnMaterial[them] -= PieceValue[MG][captured];
- 
--      if (Eval::useNNUE)
--      {
--          dp.dirty_num = 2;  // 1 piece moved, 1 piece captured
--          dp.piece[1] = captured;
--          dp.from[1] = capsq;
--          dp.to[1] = SQ_NONE;
--      }
--
-       // Update board and piece lists
-       remove_piece(capsq);
- 
-@@ -794,13 +764,6 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
-   // Move the piece. The tricky Chess960 castling is handled earlier
-   if (type_of(m) != CASTLING)
-   {
--      if (Eval::useNNUE)
--      {
--          dp.piece[0] = pc;
--          dp.from[0] = from;
--          dp.to[0] = to;
--      }
--
-       move_piece(from, to);
-   }
- 
-@@ -825,16 +788,6 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
-           remove_piece(to);
-           put_piece(promotion, to);
- 
--          if (Eval::useNNUE)
--          {
--              // Promoting pawn to SQ_NONE, promoted piece from SQ_NONE
--              dp.to[0] = SQ_NONE;
--              dp.piece[dp.dirty_num] = promotion;
--              dp.from[dp.dirty_num] = SQ_NONE;
--              dp.to[dp.dirty_num] = to;
--              dp.dirty_num++;
--          }
--
-           // Update hash keys
-           k ^= Zobrist::psq[pc][to] ^ Zobrist::psq[promotion][to];
-           st->pawnKey ^= Zobrist::psq[pc][to];
-@@ -963,18 +916,6 @@ void Position::do_castling(Color us, Square from, Square& to, Square& rfrom, Squ
-   rto = relative_square(us, kingSide ? SQ_F1 : SQ_D1);
-   to = relative_square(us, kingSide ? SQ_G1 : SQ_C1);
- 
--  if (Do && Eval::useNNUE)
--  {
--      auto& dp = st->dirtyPiece;
--      dp.piece[0] = make_piece(us, KING);
--      dp.from[0] = from;
--      dp.to[0] = to;
--      dp.piece[1] = make_piece(us, ROOK);
--      dp.from[1] = rfrom;
--      dp.to[1] = rto;
--      dp.dirty_num = 2;
--  }
--
-   // Remove both pieces first since squares could overlap in Chess960
-   remove_piece(Do ? from : to);
-   remove_piece(Do ? rfrom : rto);
-@@ -992,16 +933,11 @@ void Position::do_null_move(StateInfo& newSt) {
-   assert(!checkers());
-   assert(&newSt != st);
- 
--  std::memcpy(&newSt, st, offsetof(StateInfo, accumulator));
-+  std::memcpy(&newSt, st, sizeof(StateInfo));
- 
-   newSt.previous = st;
-   st = &newSt;
- 
--  st->dirtyPiece.dirty_num = 0;
--  st->dirtyPiece.piece[0] = NO_PIECE; // Avoid checks in UpdateAccumulator()
--  st->accumulator.computed[WHITE] = false;
--  st->accumulator.computed[BLACK] = false;
--
-   if (st->epSquare != SQ_NONE)
-   {
-       st->key ^= Zobrist::enpassant[file_of(st->epSquare)];
-diff --git a/src/position.h b/src/position.h
-index 2e6014d..0c9fdee 100644
---- a/src/position.h
-+++ b/src/position.h
-@@ -29,8 +29,6 @@
- #include "psqt.h"
- #include "types.h"
- 
--#include "nnue/nnue_accumulator.h"
--
- namespace Stockfish {
- 
- /// StateInfo struct stores information needed to restore a Position object to
-@@ -57,10 +55,6 @@ struct StateInfo {
-   Bitboard   checkSquares[PIECE_TYPE_NB];
-   Piece      capturedPiece;
-   int        repetition;
--
--  // Used by NNUE
--  Eval::NNUE::Accumulator accumulator;
--  DirtyPiece dirtyPiece;
- };
- 
- 
-@@ -170,9 +164,6 @@ public:
-   bool pos_is_ok() const;
-   void flip();
- 
--  // Used by NNUE
--  StateInfo* state() const;
--
-   void put_piece(Piece pc, Square s);
-   void remove_piece(Square s);
- 
-@@ -440,11 +431,6 @@ inline void Position::do_move(Move m, StateInfo& newSt) {
-   do_move(m, newSt, gives_check(m));
- }
- 
--inline StateInfo* Position::state() const {
--
--  return st;
--}
--
- } // namespace Stockfish
- 
- #endif // #ifndef POSITION_H_INCLUDED
 diff --git a/src/search.cpp b/src/search.cpp
-index 740ad71..1737f8b 100644
+index 91ac60a..8ade87e 100644
 --- a/src/search.cpp
 +++ b/src/search.cpp
-@@ -33,8 +33,6 @@
- #include "timeman.h"
- #include "tt.h"
- #include "uci.h"
--#include "syzygy/tbprobe.h"
--#include "nnue/evaluate_nnue.h"
+@@ -96,7 +96,7 @@ namespace {
+   struct Skill {
+     explicit Skill(int l) : level(l) {}
+     bool enabled() const { return level < 20; }
+-    bool time_to_pick(Depth depth) const { return depth == 1 + level; }
++    bool time_to_pick(Depth depth) const { return depth >= 1 + level; }
+     Move pick_best(size_t multiPV);
  
- namespace Stockfish {
- 
-@@ -43,16 +41,6 @@ namespace Search {
-   LimitsType Limits;
- }
- 
--namespace Tablebases {
--
--  int Cardinality;
--  bool RootInTB;
--  bool UseRule50;
--  Depth ProbeDepth;
--}
--
--namespace TB = Tablebases;
--
- using std::string;
- using Eval::evaluate;
- using namespace Search;
-@@ -132,7 +120,6 @@ namespace {
-   uint64_t perft(Position& pos, Depth depth) {
- 
-     StateInfo st;
--    ASSERT_ALIGNED(&st, Eval::NNUE::CacheLineSize);
- 
-     uint64_t cnt, nodes = 0;
-     const bool leaf = (depth == 2);
-@@ -175,7 +162,6 @@ void Search::clear() {
-   Time.availableNodes = 0;
-   TT.clear();
-   Threads.clear();
--  Tablebases::init(Options["SyzygyPath"]); // Free mapped files
- }
- 
- 
-@@ -195,8 +181,6 @@ void MainThread::search() {
-   Time.init(Limits, us, rootPos.game_ply());
-   TT.new_search();
- 
--  Eval::NNUE::verify();
--
-   if (rootMoves.empty())
-   {
-       rootMoves.emplace_back(MOVE_NONE);
-@@ -250,9 +234,9 @@ void MainThread::search() {
+     int level;
+@@ -278,9 +278,9 @@ void MainThread::search() {
    sync_cout << "bestmove " << UCI::move(bestThread->rootMoves[0].pv[0], rootPos.is_chess960());
  
    if (bestThread->rootMoves[0].pv.size() > 1 || bestThread->rootMoves[0].extract_ponder_from_tt(rootPos))
@@ -530,213 +114,55 @@ index 740ad71..1737f8b 100644
  }
  
  
-@@ -538,7 +522,6 @@ namespace {
- 
-     Move pv[MAX_PLY+1], capturesSearched[32], quietsSearched[64];
-     StateInfo st;
--    ASSERT_ALIGNED(&st, Eval::NNUE::CacheLineSize);
- 
-     TTEntry* tte;
-     Key posKey;
-@@ -648,57 +631,6 @@ namespace {
-             return ttValue;
+@@ -335,8 +335,8 @@ void Thread::search() {
+   // for match (TC 60+0.6) results spanning a wide range of k values.
+   PRNG rng(now());
+   double floatLevel = Options["UCI_LimitStrength"] ?
+-                      Utility::clamp(std::pow((Options["UCI_Elo"] - 1346.6) / 143.4, 1 / 0.806), 0.0, 20.0) :
+-                        double(Options["Skill Level"]);
++                      Utility::clamp(std::pow((Options["UCI_Elo"] - 1346.6) / 143.4, 1 / 0.806), -10.0, 20.0) :
++                        double(Options["Skill Level"]-10);
+   int intLevel = int(floatLevel) +
+                  ((floatLevel - int(floatLevel)) * 1024 > rng.rand<unsigned>() % 1024  ? 1 : 0);
+   Skill skill(intLevel);
+@@ -1776,14 +1776,12 @@ moves_loop: // When in check, search starts from here
+         // This is our magic formula
+         int push = (  weakness * int(topScore - rootMoves[i].score)
+                     + delta * (rng.rand<unsigned>() % weakness)) / 128;
+-
+         if (rootMoves[i].score + push >= maxScore)
+         {
+             maxScore = rootMoves[i].score + push;
+             best = rootMoves[i].pv[0];
+         }
      }
+-
+     return best;
+   }
  
--    // Step 5. Tablebases probe
--    if (!rootNode && !excludedMove && TB::Cardinality)
--    {
--        int piecesCount = pos.count<ALL_PIECES>();
--
--        if (    piecesCount <= TB::Cardinality
--            && (piecesCount <  TB::Cardinality || depth >= TB::ProbeDepth)
--            &&  pos.rule50_count() == 0
--            && !pos.can_castle(ANY_CASTLING))
--        {
--            TB::ProbeState err;
--            TB::WDLScore wdl = Tablebases::probe_wdl(pos, &err);
--
--            // Force check of time on the next occasion
--            if (thisThread == Threads.main())
--                static_cast<MainThread*>(thisThread)->callsCnt = 0;
--
--            if (err != TB::ProbeState::FAIL)
--            {
--                thisThread->tbHits.fetch_add(1, std::memory_order_relaxed);
--
--                int drawScore = TB::UseRule50 ? 1 : 0;
--
--                // use the range VALUE_MATE_IN_MAX_PLY to VALUE_TB_WIN_IN_MAX_PLY to score
--                value =  wdl < -drawScore ? VALUE_MATED_IN_MAX_PLY + ss->ply + 1
--                       : wdl >  drawScore ? VALUE_MATE_IN_MAX_PLY - ss->ply - 1
--                                          : VALUE_DRAW + 2 * wdl * drawScore;
--
--                Bound b =  wdl < -drawScore ? BOUND_UPPER
--                         : wdl >  drawScore ? BOUND_LOWER : BOUND_EXACT;
--
--                if (    b == BOUND_EXACT
--                    || (b == BOUND_LOWER ? value >= beta : value <= alpha))
--                {
--                    tte->save(posKey, value_to_tt(value, ss->ply), ss->ttPv, b,
--                              std::min(MAX_PLY - 1, depth + 6),
--                              MOVE_NONE, VALUE_NONE);
--
--                    return value;
--                }
--
--                if (PvNode)
--                {
--                    if (b == BOUND_LOWER)
--                        bestValue = value, alpha = std::max(alpha, bestValue);
--                    else
--                        maxValue = value;
--                }
--            }
--        }
--    }
+@@ -1829,7 +1827,7 @@ void MainThread::check_time() {
+ string UCI::pv(const Position& pos, Depth depth, Value alpha, Value beta) {
  
-     CapturePieceToHistory& captureHistory = thisThread->captureHistory;
- 
-@@ -714,7 +646,6 @@ namespace {
-     else if (excludedMove)
-     {
-         // Providing the hint that this node's accumulator will be used often brings significant Elo gain (13 Elo)
--        Eval::NNUE::hint_common_parent_position(pos);
-         eval = ss->staticEval;
-     }
-     else if (ss->ttHit)
-@@ -723,8 +654,6 @@ namespace {
-         ss->staticEval = eval = tte->eval();
-         if (eval == VALUE_NONE)
-             ss->staticEval = eval = evaluate(pos);
--        else if (PvNode)
--            Eval::NNUE::hint_common_parent_position(pos);
- 
-         // ttValue can be used as a better position evaluation (~7 Elo)
-         if (    ttValue != VALUE_NONE
-@@ -885,8 +814,6 @@ namespace {
-                     return value;
-                 }
-             }
--
--        Eval::NNUE::hint_common_parent_position(pos);
-     }
- 
- moves_loop: // When in check, search starts here
-@@ -1411,7 +1338,6 @@ moves_loop: // When in check, search starts here
- 
-     Move pv[MAX_PLY+1];
-     StateInfo st;
--    ASSERT_ALIGNED(&st, Eval::NNUE::CacheLineSize);
- 
-     TTEntry* tte;
-     Key posKey;
-@@ -1859,7 +1785,7 @@ string UCI::pv(const Position& pos, Depth depth) {
+   std::stringstream ss;
+-  TimePoint elapsed = Time.elapsed() + 1;
++  TimePoint elapsed = std::max(Time.elapsed() + 1, TimePoint(1));
+   const RootMoves& rootMoves = pos.this_thread()->rootMoves;
    size_t pvIdx = pos.this_thread()->pvIdx;
    size_t multiPV = std::min((size_t)Options["MultiPV"], rootMoves.size());
-   uint64_t nodesSearched = Threads.nodes_searched();
--  uint64_t tbHits = Threads.tb_hits() + (TB::RootInTB ? rootMoves.size() : 0);
-+  uint64_t tbHits = 0;
+@@ -1914,6 +1912,8 @@ bool RootMove::extract_ponder_from_tt(Position& pos) {
+ void Tablebases::rank_root_moves(Position& pos, Search::RootMoves& rootMoves) {
  
-   for (size_t i = 0; i < multiPV; ++i)
-   {
-@@ -1874,9 +1800,6 @@ string UCI::pv(const Position& pos, Depth depth) {
-       if (v == -VALUE_INFINITE)
-           v = VALUE_ZERO;
- 
--      bool tb = TB::RootInTB && abs(v) < VALUE_MATE_IN_MAX_PLY;
--      v = tb ? rootMoves[i].tbScore : v;
--
-       if (ss.rdbuf()->in_avail()) // Not at first line
-           ss << "\n";
- 
-@@ -1889,7 +1812,7 @@ string UCI::pv(const Position& pos, Depth depth) {
-       if (Options["UCI_ShowWDL"])
-           ss << UCI::wdl(v, pos.game_ply());
- 
--      if (i == pvIdx && !tb && updated) // tablebase- and previous-scores are exact
-+      if (i == pvIdx && updated) // tablebase- and previous-scores are exact
-          ss << (rootMoves[i].scoreLowerbound ? " lowerbound" : (rootMoves[i].scoreUpperbound ? " upperbound" : ""));
- 
-       ss << " nodes "    << nodesSearched
-@@ -1915,7 +1838,6 @@ string UCI::pv(const Position& pos, Depth depth) {
- bool RootMove::extract_ponder_from_tt(Position& pos) {
- 
-     StateInfo st;
--    ASSERT_ALIGNED(&st, Eval::NNUE::CacheLineSize);
- 
-     bool ttHit;
- 
-@@ -1938,51 +1860,5 @@ bool RootMove::extract_ponder_from_tt(Position& pos) {
-     return pv.size() > 1;
- }
- 
--void Tablebases::rank_root_moves(Position& pos, Search::RootMoves& rootMoves) {
--
--    RootInTB = false;
--    UseRule50 = bool(Options["Syzygy50MoveRule"]);
--    ProbeDepth = int(Options["SyzygyProbeDepth"]);
--    Cardinality = int(Options["SyzygyProbeLimit"]);
--    bool dtz_available = true;
--
--    // Tables with fewer pieces than SyzygyProbeLimit are searched with
--    // ProbeDepth == DEPTH_ZERO
--    if (Cardinality > MaxCardinality)
--    {
--        Cardinality = MaxCardinality;
--        ProbeDepth = 0;
--    }
--
--    if (Cardinality >= popcount(pos.pieces()) && !pos.can_castle(ANY_CASTLING))
--    {
--        // Rank moves using DTZ tables
--        RootInTB = root_probe(pos, rootMoves);
--
--        if (!RootInTB)
--        {
--            // DTZ tables are missing; try to rank moves using WDL tables
--            dtz_available = false;
--            RootInTB = root_probe_wdl(pos, rootMoves);
--        }
--    }
--
--    if (RootInTB)
--    {
--        // Sort moves according to TB rank
--        std::stable_sort(rootMoves.begin(), rootMoves.end(),
--                  [](const RootMove &a, const RootMove &b) { return a.tbRank > b.tbRank; } );
--
--        // Probe during search only if DTZ is not available and we are winning
--        if (dtz_available || rootMoves[0].tbScore <= VALUE_DRAW)
--            Cardinality = 0;
--    }
--    else
--    {
--        // Clean up if root_probe() and root_probe_wdl() have failed
--        for (auto& m : rootMoves)
--            m.tbRank = 0;
--    }
--}
- 
- } // namespace Stockfish
-diff --git a/src/thread.cpp b/src/thread.cpp
-index c680393..ab56fbc 100644
---- a/src/thread.cpp
-+++ b/src/thread.cpp
-@@ -182,9 +182,6 @@ void ThreadPool::start_thinking(Position& pos, StateListPtr& states,
-           || std::count(limits.searchmoves.begin(), limits.searchmoves.end(), m))
-           rootMoves.emplace_back(m);
- 
--  if (!rootMoves.empty())
--      Tablebases::rank_root_moves(pos, rootMoves);
--
-   // After ownership transfer 'states' becomes empty, so if we stop the search
-   // and call 'go' again without setting a new position states.get() == nullptr.
-   assert(states.get() || setupStates.get());
+     RootInTB = false;
++    Cardinality = 0;
++    return;
+     UseRule50 = bool(Options["Syzygy50MoveRule"]);
+     ProbeDepth = int(Options["SyzygyProbeDepth"]);
+     Cardinality = int(Options["SyzygyProbeLimit"]);
 diff --git a/src/tt.cpp b/src/tt.cpp
-index 3339c99..c2038f7 100644
+index 3459090..e0caed9 100644
 --- a/src/tt.cpp
 +++ b/src/tt.cpp
-@@ -84,6 +84,9 @@ void TranspositionTable::resize(size_t mbSize) {
+@@ -82,6 +82,9 @@ void TranspositionTable::resize(size_t mbSize) {
  //  in a multi-threaded way.
  
  void TranspositionTable::clear() {
@@ -746,39 +172,11 @@ index 3339c99..c2038f7 100644
  
    std::vector<std::thread> threads;
  
-diff --git a/src/types.h b/src/types.h
-index 06b0a05..afd366f 100644
---- a/src/types.h
-+++ b/src/types.h
-@@ -487,5 +487,3 @@ constexpr Key make_key(uint64_t seed) {
- } // namespace Stockfish
- 
- #endif // #ifndef TYPES_H_INCLUDED
--
--#include "tune.h" // Global visibility to tuning setup
 diff --git a/src/uci.cpp b/src/uci.cpp
-index ed16f24..20396de 100644
+index bb57c80..ca03c03 100644
 --- a/src/uci.cpp
 +++ b/src/uci.cpp
-@@ -31,8 +31,6 @@
- #include "timeman.h"
- #include "tt.h"
- #include "uci.h"
--#include "syzygy/tbprobe.h"
--#include "nnue/evaluate_nnue.h"
- 
- using namespace std;
- 
-@@ -87,8 +85,6 @@ namespace {
-     Position p;
-     p.set(pos.fen(), Options["UCI_Chess960"], &states->back(), Threads.main());
- 
--    Eval::NNUE::verify();
--
-     sync_cout << "\n" << Eval::trace(p) << sync_endl;
-   }
- 
-@@ -225,6 +221,30 @@ namespace {
+@@ -207,6 +207,30 @@ namespace {
  
  } // namespace
  
@@ -807,76 +205,38 @@ index ed16f24..20396de 100644
 +      sync_cout << "Unknown command: '" << cmd << "'. Type help for more information." << sync_endl;
 +}
  
- /// UCI::loop() waits for a command from the stdin, parses it and then calls the appropriate
- /// function. It also intercepts an end-of-file (EOF) indication from the stdin to ensure a
-@@ -281,14 +301,6 @@ void UCI::loop(int argc, char* argv[]) {
-       else if (token == "d")        sync_cout << pos << sync_endl;
-       else if (token == "eval")     trace_eval(pos);
-       else if (token == "compiler") sync_cout << compiler_info() << sync_endl;
--      else if (token == "export_net")
--      {
--          std::optional<std::string> filename;
--          std::string f;
--          if (is >> skipws >> f)
--              filename = f;
--          Eval::NNUE::save_eval(filename);
--      }
-       else if (token == "--help" || token == "help" || token == "--license" || token == "license")
-           sync_cout << "\nStockfish is a powerful chess engine for playing and analyzing."
-                        "\nIt is released as free software licensed under the GNU GPLv3 License."
+ /// UCI::loop() waits for a command from stdin, parses it and calls the appropriate
+ /// function. Also intercepts EOF from stdin to ensure gracefully exiting if the
 diff --git a/src/uci.h b/src/uci.h
-index 8f1be00..1413cf2 100644
+index ad954d9..e36a676 100644
 --- a/src/uci.h
 +++ b/src/uci.h
-@@ -76,6 +76,7 @@ private:
+@@ -68,6 +68,7 @@ private:
+ };
  
  void init(OptionsMap&);
- void loop(int argc, char* argv[]);
 +void process_command(const std::string& cmd, Position& pos, StateListPtr& states);
+ void loop(int argc, char* argv[]);
  std::string value(Value v);
  std::string square(Square s);
- std::string move(Move m, bool chess960);
 diff --git a/src/ucioption.cpp b/src/ucioption.cpp
-index f6342e5..3e7d228 100644
+index ef54ef4..9d5b2c3 100644
 --- a/src/ucioption.cpp
 +++ b/src/ucioption.cpp
-@@ -27,7 +27,6 @@
- #include "thread.h"
- #include "tt.h"
- #include "uci.h"
--#include "syzygy/tbprobe.h"
- 
- using std::string;
- 
-@@ -42,9 +41,6 @@ static void on_clear_hash(const Option&) { Search::clear(); }
- static void on_hash_size(const Option& o) { TT.resize(size_t(o)); }
- static void on_logger(const Option& o) { start_logger(o); }
- static void on_threads(const Option& o) { Threads.set(size_t(o)); }
--static void on_tb_path(const Option& o) { Tablebases::init(o); }
--static void on_use_NNUE(const Option&) { Eval::NNUE::init(); }
--static void on_eval_file(const Option&) { Eval::NNUE::init(); }
- 
- /// Our case insensitive less() function as required by UCI protocol
- bool CaseInsensitiveLess::operator() (const string& s1, const string& s2) const {
-@@ -61,7 +57,7 @@ void init(OptionsMap& o) {
-   constexpr int MaxHashMB = Is64Bit ? 33554432 : 2048;
- 
-   o["Debug Log File"]        << Option("", on_logger);
--  o["Threads"]               << Option(1, 1, 1024, on_threads);
-+  o["Threads"]               << Option(4, 1, 1024, on_threads);
-   o["Hash"]                  << Option(16, 1, MaxHashMB, on_hash_size);
+@@ -66,14 +66,14 @@ void init(OptionsMap& o) {
    o["Clear Hash"]            << Option(on_clear_hash);
    o["Ponder"]                << Option(false);
-@@ -75,12 +71,6 @@ void init(OptionsMap& o) {
+   o["MultiPV"]               << Option(1, 1, 500);
+-  o["Skill Level"]           << Option(20, 0, 20);
++  o["Skill Level"]           << Option(30, 0, 30);
+   o["Move Overhead"]         << Option(10, 0, 5000);
+   o["Slow Mover"]            << Option(100, 10, 1000);
+   o["nodestime"]             << Option(0, 0, 10000);
+   o["UCI_Chess960"]          << Option(false);
+   o["UCI_AnalyseMode"]       << Option(false);
    o["UCI_LimitStrength"]     << Option(false);
-   o["UCI_Elo"]               << Option(1320, 1320, 3190);
+-  o["UCI_Elo"]               << Option(1350, 1350, 2850);
++  o["UCI_Elo"]               << Option(1350, 350, 2850);
    o["UCI_ShowWDL"]           << Option(false);
--  o["SyzygyPath"]            << Option("<empty>", on_tb_path);
--  o["SyzygyProbeDepth"]      << Option(1, 1, 100);
--  o["Syzygy50MoveRule"]      << Option(true);
--  o["SyzygyProbeLimit"]      << Option(7, 0, 7);
--  o["Use NNUE"]              << Option(true, on_use_NNUE);
--  o["EvalFile"]              << Option(EvalFileDefaultName, on_eval_file);
- }
- 
- 
+   o["SyzygyPath"]            << Option("<empty>", on_tb_path);
+   o["SyzygyProbeDepth"]      << Option(1, 1, 100);
