@@ -1,12 +1,10 @@
 export interface ZerofishOpts {
   root?: string;
   wasm?: string;
-  net?: { name: string; url: string };
-  search?: FishSearch;
+  maxZeros?: number;
 }
 
 export interface FishSearch {
-  elo?: number;
   level?: number;
   multiPv?: number;
   depth?: number;
@@ -14,120 +12,152 @@ export interface FishSearch {
   nodes?: number;
 }
 
+export interface ZeroNet {
+  name: string;
+  fetch: (name?: string) => Promise<Uint8Array>;
+}
+
+export interface ZeroSearch {
+  depth?: number;
+  net: ZeroNet;
+}
+
 export interface Position {
   fen?: string;
   moves?: string[];
 }
 
-export type Score = { moves: string[]; score: number; depth: number };
+export interface Line {
+  moves: string[];
+  scores: number[];
+}
+
+export interface SearchResult {
+  pvs: Line[];
+  bestmove: string;
+  engine: 'fish' | 'zero';
+}
+
+type Worker = any;
 
 export class Zerofish {
-  netName?: string;
-  search: FishSearch = { depth: 12 };
-  zero = this.engine.zero;
-  fish = this.engine.fish;
+  private lru = new Map<string, number>();
 
-  constructor(private engine: any) {
-    this.engine.fish('setoption name Hash value 1');
-    this.engine.fish('ucinewgame');
-    if (this.netName) this.engine.zero('ucinewgame');
+  constructor(private workers: Worker[]) {
+    this.fish('setoption name Hash value 1');
+    this.fish('ucinewgame');
   }
 
-  goZero(pos: Position, depth?: number) {
-    return new Promise<string>((resolve, reject) => {
-      if (!this.netName) return reject('unitialized');
-      this.engine['listenZero'] = (msg: string) => {
-        if (!msg) return;
+  get fish(): Worker {
+    return this.workers[0].fish;
+  }
+
+  goZero(pos: Position, { depth, net }: ZeroSearch): Promise<SearchResult> {
+    return new Promise<SearchResult>(async (resolve, reject) => {
+      const netIndex = this.lru.get(net.name) ?? (await this.getNet(net));
+      this.lru.set(net.name, netIndex);
+      const engine = this.workers[netIndex];
+      engine['listenZero'] = (msg: string) => {
         const tokens = msg.split(' ');
-        if (tokens[0] === 'bestmove') resolve(tokens[1]);
+        if (tokens[0] === 'bestmove') resolve({ bestmove: tokens[1], pvs: [], engine: 'zero' });
       };
-      this.position(pos, this.engine.zero);
-      if (depth) this.engine.zero(`go depth ${depth}`);
-      else this.engine.zero(`go nodes 1`);
+      sendPosition(pos, engine.zero);
+      if (depth) engine.zero(`go depth ${depth}`);
+      else engine.zero(`go nodes 1`);
     });
   }
 
-  goFish(pos: Position, o = this.search) {
-    return new Promise<Score /* pv */[] /* depth */[]>(resolve => {
-      const numPvs = o.multiPv ?? 1;
-      const pvs: Score[][] = Array.from({ length: numPvs }, () => []);
-      this.engine['listenFish'] = (line: string) => {
+  private async getNet(net: ZeroNet): Promise<number> {
+    let netIndex: number;
+    if (this.lru.size < this.workers.length) {
+      netIndex = this.lru.size;
+    } else {
+      const [netName, index] = this.lru.entries().next().value as [string, number];
+      this.lru.delete(netName);
+      netIndex = index;
+    }
+    return new Promise<number>(async resolve => {
+      console.log(this.workers.length, this.lru.size, netIndex, net.name);
+      this.workers[netIndex].setZeroWeights(await net.fetch(net.name));
+      this.workers[netIndex].zero('ucinewgame');
+      this.workers[netIndex].listenZero = (msg: string) => {
+        if (msg === 'readyok') resolve(netIndex);
+      };
+      this.workers[netIndex].zero('isready');
+    });
+  }
+
+  goFish(pos: Position, { level, multiPv, depth, movetime, nodes }: FishSearch = {}): Promise<SearchResult> {
+    return new Promise<SearchResult>(resolve => {
+      multiPv ??= 1;
+      depth ??= 12;
+      const pvs: Line[] = Array.from({ length: multiPv }, () => ({
+        moves: [],
+        scores: [],
+      }));
+      this.workers[0]['listenFish'] = (line: string) => {
         const tokens = line.split(' ');
         const shiftParse = (field: string) => {
           while (tokens.length > 1) if (tokens.shift() === field) return parseInt(tokens.shift()!);
         };
         if (tokens[0] === 'bestmove') {
-          const choice = pvs.findIndex(pv => pv.length > 0 && pv[0].moves[0] === tokens[1]);
-          if (choice === -1) pvs[0] = [{ moves: [tokens[1]], score: 0, depth: 0 }];
-          else if (choice > 0) [pvs[0], pvs[choice]] = [pvs[choice], pvs[0]];
-          resolve(pvs);
+          resolve({
+            bestmove: tokens[1],
+            pvs: pvs.find(pv => pv.moves[0] === tokens[1]) ? pvs : [{ moves: [tokens[1]], scores: [0] }],
+            engine: 'fish',
+          });
         } else if (tokens.shift() === 'info') {
           if (tokens.length < 7) return;
-          const depth = shiftParse('depth')!;
-          const byDepth: Score[] = pvs[shiftParse('multipv')! - 1];
+          const scoreDepth = shiftParse('depth')!;
+          const pv: Line = pvs[shiftParse('multipv')! - 1];
           const score = shiftParse('cp')!;
           const moveIndex = tokens.indexOf('pv') + 1;
 
-          if (depth > byDepth.length && moveIndex > 0)
-            byDepth.push({
-              moves: tokens.slice(moveIndex),
-              score,
-              depth,
-            });
+          if (scoreDepth > pv.moves.length && moveIndex > 0) {
+            pv.moves = tokens.slice(moveIndex);
+            pv.scores.push(score);
+          }
         } else console.warn('unknown line', line);
       };
-      this.engine.fish(`setoption name UCI_LimitStrength value ${!!o.elo}`);
-      if (o.elo) this.engine.fish(`setoption name UCI_Elo value ${o.elo}`);
-      if (o.level !== undefined) this.engine.fish(`setoption name Skill Level value ${o.level}`);
-      if (o.multiPv) this.engine.fish(`setoption name multipv value ${o.multiPv}`);
-      this.position(pos, this.engine.fish);
-      if (o.movetime) this.engine.fish(`go movetime ${o.movetime}`);
-      else if (o.nodes) this.engine.fish(`go nodes ${o.nodes}`);
-      else this.engine.fish(`go depth ${o.depth ?? 1}`);
+      if (level !== undefined) this.fish(`setoption name Skill Level value ${level}`);
+      this.fish(`setoption name multipv value ${multiPv}`);
+      sendPosition(pos, this.fish);
+      if (movetime) this.fish(`go movetime ${movetime}`);
+      else if (nodes) this.fish(`go nodes ${nodes}`);
+      else this.fish(`go depth ${depth}`);
     });
-  }
-
-  setNet(name: string, weights: Uint8Array) {
-    this.engine.setZeroWeights(weights);
-    this.netName = name;
-  }
-
-  setSearch(searchOpts: FishSearch) {
-    this.search = searchOpts;
   }
 
   quit() {
     this.stop();
-    this.engine.quit();
+    for (const w of this.workers) w.quit();
   }
 
   stop() {
-    if (this.netName) this.engine.zero('stop');
-    this.engine.fish('stop');
+    this.fish('stop');
+    for (const i of this.lru.values()) this.workers[i].zero('stop');
   }
 
   reset() {
     this.stop();
-    this.engine.fish('ucinewgame');
-    if (this.netName) this.engine.zero('ucinewgame');
-  }
-
-  private position({ fen, moves }: Position, engine: any) {
-    engine(
-      'position ' + (fen ? `fen ${fen}` : 'startpos') + (moves && moves[0] ? ` moves ${moves.join(' ')}` : '')
-    );
+    this.fish('ucinewgame');
+    for (const i of this.lru.values()) this.workers[i].zero('ucinewgame');
   }
 }
 
-export default async function initModule({ root, wasm, net, search }: ZerofishOpts = {}): Promise<Zerofish> {
+export default async function initModule({ root, wasm, maxZeros }: ZerofishOpts = {}): Promise<Zerofish> {
   const module = await import(`${root ?? '.'}/zerofishEngine.js`);
-  const params = wasm ? { locateFile: () => wasm } : {};
-  const [zfe, weights] = await Promise.all([
-    module.default(params),
-    net ? fetch(net.url) : Promise.resolve(undefined),
-  ]);
-  const zf = new Zerofish(zfe);
-  if (weights) zf.setNet(net!.name, new Uint8Array(await weights.arrayBuffer()));
-  if (search) zf.setSearch(search);
-  return zf;
+  const enginePromises = Array.from({ length: maxZeros ?? 1 }, () =>
+    module.default({ locateFile: wasm ? () => wasm : undefined, noInitialRun: true })
+  );
+  const engines = await Promise.all(enginePromises);
+  engines[0].callMain(['4']); // 4 fish threads on main engine
+  engines.slice(1).forEach(engine => engine.callMain(['-1'])); // no fish on the others
+  return new Zerofish(engines);
+}
+
+function sendPosition({ fen, moves }: Position, engine: any) {
+  engine(
+    'position ' + (fen ? `fen ${fen}` : 'startpos') + (moves && moves[0] ? ` moves ${moves.join(' ')}` : '')
+  );
 }

@@ -19,18 +19,10 @@ function main() {
     -Wno-unused-command-line-argument
     -std=c++17
     -pthread
-    -msse
-    -msse2
-    -mssse3
-    -msse4.1
-    -msimd128
-    -D__i386__
+    -D__arm__
     -DEIGEN_NO_CPUID
     -DEIGEN_DONT_VECTORIZE
     -DEIGEN_DONT_PARALLELIZE
-    -DUSE_SSE2
-    -DUSE_SSSE3
-    -DUSE_SSE41
     -DUSE_POPCNT
     -DNO_PEXT
     -flto
@@ -39,14 +31,13 @@ function main() {
     "${CXX_FLAGS[@]}"
     --pre-js=src/initModule.js
     -sEXPORTED_FUNCTIONS=[_free,_malloc,_main,_set_weights,_uci,_quit]
-    -sEXPORTED_RUNTIME_METHODS=[stringToUTF8,lengthBytesUTF8,HEAPU8]
-    -sINCOMING_MODULE_JS_API=[print,printErr,wasmMemory,buffer,instantiateWasm]
-    -sINITIAL_MEMORY=256MB
+    -sEXPORTED_RUNTIME_METHODS=[stringToUTF8,lengthBytesUTF8,HEAPU8,callMain]
+    -sINCOMING_MODULE_JS_API=[print,printErr,wasmMemory,buffer,instantiateWasm,noInitialRun]
+    -sINITIAL_MEMORY=120MB
     -sSTACK_SIZE=1MB
     -sSTRICT
     -sFILESYSTEM=0
     -sPROXY_TO_PTHREAD
-    -sPTHREAD_POOL_SIZE=8
     -sALLOW_MEMORY_GROWTH
     -sALLOW_BLOCKING_ON_MAIN_THREAD=0
     -sEXIT_RUNTIME
