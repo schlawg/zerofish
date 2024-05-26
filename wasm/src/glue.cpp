@@ -98,7 +98,9 @@ EMSCRIPTEN_KEEPALIVE int main(int argc, char **argv) {
       if (cmd.data.weightsBuffer) lc0.SetWeightsBuffer(cmd.data.weightsBuffer, cmd.data.weightsSize);
       else lc0.ProcessCommand(cmd.data.uci);
     }
-    else if (cmd.type == FISH && fish_threads > 0) UCI::process_command(cmd.data.uci, pos, states);
+    else if (cmd.type == FISH) {
+      if (fish_threads > 0) UCI::process_command(cmd.data.uci, pos, states);
+    }
     else break;
   }
   return 0;

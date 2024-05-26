@@ -220,10 +220,15 @@ index ad954d9..e36a676 100644
  std::string value(Value v);
  std::string square(Square s);
 diff --git a/src/ucioption.cpp b/src/ucioption.cpp
-index ef54ef4..9d5b2c3 100644
+index ef54ef4..23f8566 100644
 --- a/src/ucioption.cpp
 +++ b/src/ucioption.cpp
-@@ -66,14 +66,14 @@ void init(OptionsMap& o) {
+@@ -62,18 +62,18 @@ void init(OptionsMap& o) {
+   o["Contempt"]              << Option(24, -100, 100);
+   o["Analysis Contempt"]     << Option("Both var Off var White var Black var Both", "Both");
+   o["Threads"]               << Option(1, 1, 512, on_threads);
+-  o["Hash"]                  << Option(16, 1, MaxHashMB, on_hash_size);
++  o["Hash"]                  << Option(4, 1, MaxHashMB, on_hash_size);
    o["Clear Hash"]            << Option(on_clear_hash);
    o["Ponder"]                << Option(false);
    o["MultiPV"]               << Option(1, 1, 500);

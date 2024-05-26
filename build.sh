@@ -32,19 +32,17 @@ function main() {
     --pre-js=src/initModule.js
     -sEXPORTED_FUNCTIONS=[_free,_malloc,_main,_set_weights,_uci,_quit]
     -sEXPORTED_RUNTIME_METHODS=[stringToUTF8,lengthBytesUTF8,HEAPU8,callMain]
-    -sINCOMING_MODULE_JS_API=[print,printErr,wasmMemory,buffer,instantiateWasm,noInitialRun]
-    -sINITIAL_MEMORY=120MB
+    -sINCOMING_MODULE_JS_API=[print,printErr,instantiateWasm,locateFile,noInitialRun]
+    -sINITIAL_MEMORY=256MB
     -sSTACK_SIZE=1MB
     -sSTRICT
     -sFILESYSTEM=0
     -sPROXY_TO_PTHREAD
-    -sALLOW_MEMORY_GROWTH
-    -sALLOW_BLOCKING_ON_MAIN_THREAD=0
     -sEXIT_RUNTIME
     -sEXPORT_ES6
     -sEXPORT_NAME=zerofish
     -sENVIRONMENT=$ENVIRONMENT
-    -Wno-pthreads-mem-growth
+    -sALLOW_BLOCKING_ON_MAIN_THREAD=${DEBUG:-0}
   )
   SF_SOURCES=(
     bitbase.cpp bitboard.cpp endgame.cpp evaluate.cpp material.cpp misc.cpp movegen.cpp
@@ -100,7 +98,7 @@ function parseArgs() {
   # override defaults with command line arguments
   while test $# -gt 0; do
     if [ "$1" == "debug" ]; then
-      DEBUG=true
+      DEBUG=1
       OPT_FLAGS=(-O0 -DDEBUG -sASSERTIONS=2 -g3 -sSAFE_HEAP)
     elif [ "$1" == "docker" ]; then
       unset LOCAL
