@@ -17,6 +17,7 @@ function main() {
     -Wno-deprecated-copy-with-user-provided-copy
     -Wno-deprecated-declarations
     -Wno-unused-command-line-argument
+    -Wno-pthreads-mem-growth
     -std=c++17
     -pthread
     -D__arm__
@@ -25,6 +26,7 @@ function main() {
     -DEIGEN_DONT_PARALLELIZE
     -DUSE_POPCNT
     -DNO_PEXT
+    -DDEFAULT_TASK_WORKERS=4
     -flto
   )
   LD_FLAGS=(
@@ -38,6 +40,7 @@ function main() {
     -sSTRICT
     -sFILESYSTEM=0
     -sPROXY_TO_PTHREAD
+    -sALLOW_MEMORY_GROWTH
     -sEXIT_RUNTIME
     -sEXPORT_ES6
     -sEXPORT_NAME=zerofish
@@ -106,8 +109,8 @@ function parseArgs() {
       ENVIRONMENT="node"
     elif [ "$1" == "help" ] || [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
       echo "Usage: $0 [docker] [debug] [node]"
-      echo "  docker: build using docker"
-      echo "  debug: build with debug symbols"
+      echo "  docker: build using docker emsdk:3.1.59"
+      echo "  debug: assertions, safe heap, no optimizations"
       echo "  node: build for nodejs"
       exit 0
     else

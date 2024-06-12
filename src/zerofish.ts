@@ -1,15 +1,19 @@
 export interface ZerofishOpts {
   root?: string;
   wasm?: string;
-  maxZeros?: number;
+  dev?: boolean;
+}
+
+export interface Search {
+  depth?: number;
+  movetime?: number;
+  nodes?: number;
 }
 
 export interface FishSearch {
   level?: number;
-  multiPv?: number;
-  depth?: number;
-  movetime?: number;
-  nodes?: number;
+  multipv?: number;
+  search: Search;
 }
 
 export interface ZeroNet {
@@ -18,8 +22,8 @@ export interface ZeroNet {
 }
 
 export interface ZeroSearch {
-  depth?: number;
   net: ZeroNet;
+  search?: Search;
 }
 
 export interface Position {
@@ -40,19 +44,36 @@ export interface SearchResult {
 
 type Worker = any;
 
+export default async function initModule({ root, wasm, dev }: ZerofishOpts = {}): Promise<Zerofish> {
+  const module = await import(`${root ?? '.'}/zerofishEngine.js`);
+  const enginePromises = Array.from({ length: dev ? 2 : 1 }, () =>
+    module.default({
+      locateFile: wasm ? () => wasm : undefined,
+      noInitialRun: true,
+    })
+  );
+  const engines = await Promise.all(enginePromises);
+  engines[0].callMain(['4']); // 4 fish threads on main engine
+  if (dev) engines[1].callMain(['1']);
+  return new Zerofish(engines);
+}
+
 export class Zerofish {
   private lru = new Map<string, number>();
 
   constructor(private workers: Worker[]) {
-    this.fish('setoption name Hash value 1');
+    this.fish('setoption name Hash value 8');
     this.fish('ucinewgame');
   }
 
   get fish(): Worker {
-    return this.workers[0].fish;
+    return (cmd: string, index: number = 0) => {
+      if (index >= this.workers.length) index = 0;
+      this.workers[index].fish(cmd);
+    };
   }
 
-  goZero(pos: Position, { depth, net }: ZeroSearch): Promise<SearchResult> {
+  goZero(pos: Position, { search, net }: ZeroSearch): Promise<SearchResult> {
     return new Promise<SearchResult>(async (resolve, reject) => {
       const netIndex = this.lru.get(net.name) ?? (await this.getNet(net));
       this.lru.set(net.name, netIndex);
@@ -62,40 +83,20 @@ export class Zerofish {
         if (tokens[0] === 'bestmove') resolve({ bestmove: tokens[1], pvs: [], engine: 'zero' });
       };
       sendPosition(pos, engine.zero);
-      if (depth) engine.zero(`go depth ${depth}`);
-      else engine.zero(`go nodes 1`);
+      sendGo(search ?? { nodes: 1 }, engine.zero, reject);
     });
   }
 
-  private async getNet(net: ZeroNet): Promise<number> {
-    let netIndex: number;
-    if (this.lru.size < this.workers.length) {
-      netIndex = this.lru.size;
-    } else {
-      const [netName, index] = this.lru.entries().next().value as [string, number];
-      this.lru.delete(netName);
-      netIndex = index;
-    }
-    return new Promise<number>(async resolve => {
-      console.log(this.workers.length, this.lru.size, netIndex, net.name);
-      this.workers[netIndex].setZeroWeights(await net.fetch(net.name));
-      this.workers[netIndex].zero('ucinewgame');
-      this.workers[netIndex].listenZero = (msg: string) => {
-        if (msg === 'readyok') resolve(netIndex);
-      };
-      this.workers[netIndex].zero('isready');
-    });
-  }
-
-  goFish(pos: Position, { level, multiPv, depth, movetime, nodes }: FishSearch = {}): Promise<SearchResult> {
-    return new Promise<SearchResult>(resolve => {
-      multiPv ??= 1;
-      depth ??= 12;
-      const pvs: Line[] = Array.from({ length: multiPv }, () => ({
-        moves: [],
-        scores: [],
-      }));
-      this.workers[0]['listenFish'] = (line: string) => {
+  goFish(pos: Position, { level, multipv, search }: FishSearch, index = 0): Promise<SearchResult> {
+    const { depth, movetime, nodes } = search;
+    if (index >= this.workers.length) index = 0;
+    multipv ??= level !== undefined ? 4 : 1;
+    const pvs: Line[] = Array.from({ length: multipv }, () => ({
+      moves: [],
+      scores: [],
+    }));
+    return new Promise<SearchResult>((resolve, reject) => {
+      this.workers[index]['listenFish'] = (line: string) => {
         const tokens = line.split(' ');
         const shiftParse = (field: string) => {
           while (tokens.length > 1) if (tokens.shift() === field) return parseInt(tokens.shift()!);
@@ -119,12 +120,10 @@ export class Zerofish {
           }
         } else console.warn('unknown line', line);
       };
-      if (level !== undefined) this.fish(`setoption name Skill Level value ${level}`);
-      this.fish(`setoption name multipv value ${multiPv}`);
-      sendPosition(pos, this.fish);
-      if (movetime) this.fish(`go movetime ${movetime}`);
-      else if (nodes) this.fish(`go nodes ${nodes}`);
-      else this.fish(`go depth ${depth}`);
+      if (level !== undefined) this.fish(`setoption name skill level value ${level}`, index);
+      this.fish(`setoption name multipv value ${multipv}`, index);
+      sendPosition(pos, (cmd: string) => this.fish(cmd, index));
+      sendGo(search, (cmd: string) => this.fish(cmd, index), reject);
     });
   }
 
@@ -134,26 +133,40 @@ export class Zerofish {
   }
 
   stop() {
-    this.fish('stop');
-    for (const i of this.lru.values()) this.workers[i].zero('stop');
+    for (const w of this.workers) {
+      w.fish('stop');
+      w.zero('stop');
+    }
   }
 
   reset() {
     this.stop();
-    this.fish('ucinewgame');
-    for (const i of this.lru.values()) this.workers[i].zero('ucinewgame');
+    for (const w of this.workers) {
+      w.fish('ucinewgame');
+      w.zero('ucinewgame');
+    }
+  }
+
+  private async getNet(net: ZeroNet): Promise<number> {
+    let netIndex: number;
+    if (this.lru.size < this.workers.length) {
+      netIndex = this.lru.size;
+    } else {
+      const [netName, index] = this.lru.entries().next().value as [string, number];
+      this.lru.delete(netName);
+      netIndex = index;
+    }
+    this.workers[netIndex].zero('ucinewgame');
+    this.workers[netIndex].setZeroWeights(await net.fetch(net.name));
+    return netIndex;
   }
 }
 
-export default async function initModule({ root, wasm, maxZeros }: ZerofishOpts = {}): Promise<Zerofish> {
-  const module = await import(`${root ?? '.'}/zerofishEngine.js`);
-  const enginePromises = Array.from({ length: maxZeros ?? 1 }, () =>
-    module.default({ locateFile: wasm ? () => wasm : undefined, noInitialRun: true })
-  );
-  const engines = await Promise.all(enginePromises);
-  engines[0].callMain(['4']); // 4 fish threads on main engine
-  engines.slice(1).forEach(engine => engine.callMain(['-1'])); // no fish on the others
-  return new Zerofish(engines);
+function sendGo(search: Search, engine: any, reject: (reason: any) => void) {
+  if (search.movetime) engine(`go movetime ${search.movetime}`);
+  else if (search.nodes) engine(`go nodes ${search.nodes}`);
+  else if (search.depth) engine(`go depth ${search.depth}`);
+  else reject(`invalid search ${JSON.stringify(search)}`);
 }
 
 function sendPosition({ fen, moves }: Position, engine: any) {
