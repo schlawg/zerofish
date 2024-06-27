@@ -1,6 +1,6 @@
 {
   "name": "zerofish",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "author": "T-bone Duplexus",
   "license": "AGPL-3.0-or-later",
   "type": "module",
@@ -13,7 +13,7 @@
     "typescript": "^5.4.5"
   },
   "scripts": {
-    "format": "prettier --write src",
+    "format": "prettier --write .",
     "test": "./build.sh node && tsc && node dist/test/node",
     "build": "./build.sh && tsc",
     "clean": "rm -rf dist/* wasm/Makefile && if [ -d wasm/lc0 ]; then git -C wasm/lc0 clean -fdx -e *.pb.h; fi && if [ -d wasm/Stockfish ]; then git -C wasm/Stockfish clean -fdx; fi"

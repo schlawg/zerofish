@@ -1,0 +1,11 @@
+README.md
+LICENSE
+*.sh
+*.pb
+*.yaml
+*.patch
+.*
+dist/**/*.js
+Stockfish
+lc0
+eigen

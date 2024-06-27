@@ -26,7 +26,7 @@ function main() {
     -DEIGEN_DONT_PARALLELIZE
     -DUSE_POPCNT
     -DNO_PEXT
-    -DDEFAULT_TASK_WORKERS=4
+    -DDEFAULT_TASK_WORKERS=0
     -flto
   )
   LD_FLAGS=(
