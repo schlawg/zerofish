@@ -2,6 +2,7 @@ wasm/lc0
 wasm/eigen
 wasm/Stockfish
 wasm/Makefile
+wasm/weights
 dist/
 node_modules/
 **.o
