@@ -343,6 +343,19 @@ index f969725..7c2664b 100644
  
  namespace lczero {
  
+diff --git a/src/neural/blas/network_blas.cc b/src/neural/blas/network_blas.cc
+index 3edc1f1..8a99fbe 100644
+--- a/src/neural/blas/network_blas.cc
++++ b/src/neural/blas/network_blas.cc
+@@ -702,7 +702,7 @@ BlasNetwork<use_eigen>::BlasNetwork(const WeightsFile& file,
+     weights_.policy.weights = WinogradFilterTransformF(weights_.policy.weights,
+                                                        pol_channels, channels);
+   }
+-
++  return;
+   if (use_eigen) {
+     CERR << "Using Eigen version " << EIGEN_WORLD_VERSION << "."
+          << EIGEN_MAJOR_VERSION << "." << EIGEN_MINOR_VERSION;
 diff --git a/src/neural/factory.cc b/src/neural/factory.cc
 index 03c69ef..6ae42f6 100644
 --- a/src/neural/factory.cc
