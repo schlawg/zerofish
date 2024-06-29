@@ -357,7 +357,7 @@ index 3edc1f1..8a99fbe 100644
      CERR << "Using Eigen version " << EIGEN_WORLD_VERSION << "."
           << EIGEN_MAJOR_VERSION << "." << EIGEN_MINOR_VERSION;
 diff --git a/src/neural/factory.cc b/src/neural/factory.cc
-index 03c69ef..6ae42f6 100644
+index 03c69ef..00d410b 100644
 --- a/src/neural/factory.cc
 +++ b/src/neural/factory.cc
 @@ -30,7 +30,6 @@
@@ -368,7 +368,15 @@ index 03c69ef..6ae42f6 100644
  #include "utils/logging.h"
  
  namespace lczero {
-@@ -110,23 +109,13 @@ bool NetworkFactory::BackendConfiguration::operator==(
+@@ -88,7 +87,6 @@ std::vector<std::string> NetworkFactory::GetBackendsList() const {
+ std::unique_ptr<Network> NetworkFactory::Create(
+     const std::string& network, const std::optional<WeightsFile>& weights,
+     const OptionsDict& options) {
+-  CERR << "Creating backend [" << network << "]...";
+   for (const auto& factory : factories_) {
+     if (factory.name == network) {
+       return factory.factory(weights, options);
+@@ -110,23 +108,13 @@ bool NetworkFactory::BackendConfiguration::operator==(
  }
  
  std::unique_ptr<Network> NetworkFactory::LoadNetwork(
