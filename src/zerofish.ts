@@ -56,7 +56,7 @@ export default async function initModule({ root, wasm, dev }: ZerofishOpts = {})
   );
   const engines = await Promise.all(enginePromises);
   engines[0].callMain([dev ? `${navigator.hardwareConcurrency}` : '4']); // 4 fish threads on main engine
-  if (dev) engines[1].callMain(['0']);
+  if (dev) engines[1].callMain(['0']); // we dont need any on the second.
   return new ZerofishImpl(engines);
 }
 
@@ -68,7 +68,6 @@ interface PB {
   level?: number;
   worker: Worker;
   engine: 'fish' | 'zero';
-  listen: 'listenFish' | 'listenZero';
 }
 
 class ZerofishImpl implements Zerofish {
@@ -87,7 +86,6 @@ class ZerofishImpl implements Zerofish {
       ...s,
       worker: this.workers[0],
       engine: 'fish',
-      listen: 'listenFish',
     });
   }
 
@@ -99,7 +97,6 @@ class ZerofishImpl implements Zerofish {
       by: { nodes: 1 },
       worker: this.workers[index],
       engine: 'zero',
-      listen: 'listenZero',
     });
   }
 
@@ -110,10 +107,12 @@ class ZerofishImpl implements Zerofish {
 
   stop() {
     this.fish('stop');
-    for (const w of this.workers) w.zero('stop');
+    for (const w of this.workers) {
+      w.zero('stop');
+    }
   }
 
-  reset() {
+  async reset() {
     this.stop();
     this.newGame();
   }
@@ -138,7 +137,8 @@ class ZerofishImpl implements Zerofish {
     return netIndex;
   }
 
-  private go(pos: Position, { multipv, by, level, worker, engine, listen }: PB): Promise<SearchResult> {
+  private go(pos: Position, { multipv, by, level, worker, engine }: PB): Promise<SearchResult> {
+    const listen = engine === 'fish' ? 'listenFish' : 'listenZero';
     const pvs: Line[] = Array.from({ length: multipv }, () => ({
       moves: [],
       scores: [],
@@ -163,12 +163,13 @@ class ZerofishImpl implements Zerofish {
         } else if (tokens[0] === 'info') {
           if (tokens[1] !== 'depth') return;
           const find = (field: string) => {
-            for (let iter = 2; iter < tokens.length - 1; ) if (tokens[iter++] === field) return tokens[iter];
-            return undefined;
+            const index = tokens.indexOf(field, 2);
+            return index === -1 ? undefined : Number(tokens[index + 1]);
           };
-          const pvIndex = parseInt(find('multipv') ?? '1');
+          const pvIndex = find('multipv') ?? 1;
+          const mate = find('mate');
           const pv: Line = pvs[pvIndex - 1];
-          pv.scores.push(find('score') === 'mate' ? Infinity : parseInt(find('cp') ?? '0'));
+          pv.scores.push(find('cp') ?? (mate !== undefined ? (mate > 0 ? 10000 : -10000) : NaN));
           pv.moves = tokens.slice(tokens.indexOf('pv') + 1);
         }
       };

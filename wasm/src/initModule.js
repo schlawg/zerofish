@@ -1,5 +1,5 @@
-Module['listenFish'] = rsp => console.log('fish:', rsp); // attach listener here
-Module['listenZero'] = rsp => console.log('zero:', rsp); // attach listener here
+Module['listenFish'] = undefined;
+Module['listenZero'] = undefined;
 Module['zero'] = cmd => uci(cmd, false);
 Module['fish'] = cmd => uci(cmd, true);
 
@@ -11,10 +11,8 @@ Module['setZeroWeights'] = (weights /*: Uint8Array*/) => {
 };
 
 Module['print'] = cout => {
-  if (cout.startsWith('zero:')) {
-    if (!Module['listenZero']) console.error(cout);
-    else Module['listenZero'](cout.slice(5));
-  } else if (cout.startsWith('fish:')) Module['listenFish'](cout.slice(5));
+  if (cout.startsWith('zero:')) Module['listenZero']?.(cout.slice(5));
+  else if (cout.startsWith('fish:')) Module['listenFish']?.(cout.slice(5));
   else console.info(cout);
 };
 

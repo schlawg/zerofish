@@ -35,7 +35,7 @@ function main() {
     -sEXPORTED_FUNCTIONS=[_free,_malloc,_main,_set_weights,_uci,_quit]
     -sEXPORTED_RUNTIME_METHODS=[stringToUTF8,lengthBytesUTF8,HEAPU8,callMain]
     -sINCOMING_MODULE_JS_API=[print,printErr,instantiateWasm,locateFile,noInitialRun]
-    -sINITIAL_MEMORY=256MB
+    #-sINITIAL_MEMORY=256MB
     -sSTACK_SIZE=1MB
     -sSTRICT
     -sFILESYSTEM=0
@@ -85,7 +85,7 @@ function main() {
   if [ $LOCAL ]; then
     make -j
   else
-    docker run --rm -u $(id -u):$(id -g) -v "$PWD":/zf -w /zf emscripten/emsdk:3.1.59 sh -c 'make -j'
+    docker run --rm -u $(id -u):$(id -g) -v "$PWD":/zf -w /zf emscripten/emsdk:3.1.64 sh -c 'make -j'
   fi
   mv -f zerofishEngine.* "$OUT_DIR"
   popd > /dev/null
@@ -98,7 +98,6 @@ function parseArgs() {
   LOCAL=true
   unset DEBUG
 
-  # override defaults with command line arguments
   while test $# -gt 0; do
     if [ "$1" == "debug" ]; then
       DEBUG=1
