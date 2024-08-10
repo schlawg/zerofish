@@ -5,8 +5,8 @@ export interface ZerofishOpts {
 }
 
 export interface ZeroNet {
-  name: string;
-  fetch: (name?: string) => Promise<Uint8Array>;
+  key: string;
+  fetch: (key?: string) => Promise<Uint8Array>;
 }
 
 export type SearchBy = { depth: number } | { movetime: number } | { nodes: number };
@@ -33,7 +33,7 @@ export interface Line {
 }
 
 export interface SearchResult {
-  pvs: Line[];
+  lines: Line[];
   bestmove: string;
   engine: 'fish' | 'zero';
 }
@@ -90,8 +90,8 @@ class ZerofishImpl implements Zerofish {
   }
 
   async goZero(pos: Position, s: ZeroSearch): Promise<SearchResult> {
-    const index = this.lru.get(s.net.name) ?? (await this.getNet(s.net));
-    this.lru.set(s.net.name, index);
+    const index = this.lru.get(s.net.key) ?? (await this.getNet(s.net));
+    this.lru.set(s.net.key, index);
     return this.go(pos, {
       multipv: s.multipv,
       by: { nodes: 1 },
@@ -133,13 +133,13 @@ class ZerofishImpl implements Zerofish {
       netIndex = index;
     }
     this.workers[netIndex].zero('ucinewgame');
-    this.workers[netIndex].setZeroWeights(await net.fetch(net.name));
+    this.workers[netIndex].setZeroWeights(await net.fetch(net.key));
     return netIndex;
   }
 
   private go(pos: Position, { multipv, by, level, worker, engine }: PB): Promise<SearchResult> {
     const listen = engine === 'fish' ? 'listenFish' : 'listenZero';
-    const pvs: Line[] = Array.from({ length: multipv }, () => ({
+    const lines: Line[] = Array.from({ length: multipv }, () => ({
       moves: [],
       scores: [],
     }));
@@ -157,7 +157,7 @@ class ZerofishImpl implements Zerofish {
           worker[listen] = undefined;
           resolve({
             bestmove: tokens[1],
-            pvs: pvs.find(pv => pv.moves[0] === tokens[1]) ? pvs : [{ moves: [tokens[1]], scores: [0] }],
+            lines: lines.find(v => v.moves[0] === tokens[1]) ? lines : [{ moves: [tokens[1]], scores: [0] }],
             engine: engine,
           });
         } else if (tokens[0] === 'info') {
@@ -168,7 +168,7 @@ class ZerofishImpl implements Zerofish {
           };
           const pvIndex = find('multipv') ?? 1;
           const mate = find('mate');
-          const pv: Line = pvs[pvIndex - 1];
+          const pv: Line = lines[pvIndex - 1];
           pv.scores.push(find('cp') ?? (mate !== undefined ? (mate > 0 ? 10000 : -10000) : NaN));
           pv.moves = tokens.slice(tokens.indexOf('pv') + 1);
         }
