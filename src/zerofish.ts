@@ -13,13 +13,14 @@ export type SearchBy = { depth: number } | { movetime: number } | { nodes: numbe
 
 export interface FishSearch {
   multipv: number;
-  level?: number;
   by: SearchBy;
+  level?: number;
 }
 
 export interface ZeroSearch {
   multipv: number;
   net: ZeroNet;
+  nodes?: number;
 }
 
 export interface Position {
@@ -94,7 +95,7 @@ class ZerofishImpl implements Zerofish {
     this.lru.set(s.net.key, index);
     return this.go(pos, {
       multipv: s.multipv,
-      by: { nodes: 1 },
+      by: { nodes: s.nodes ?? 1 },
       worker: this.workers[index],
       engine: 'zero',
     });
