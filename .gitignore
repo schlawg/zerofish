@@ -6,6 +6,7 @@ wasm/weights
 dist/
 node_modules/
 **.o
+*.pb
 .vscode/
 .metals/
 .bsp/
