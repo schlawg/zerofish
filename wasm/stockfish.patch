@@ -121,7 +121,7 @@ index 91ac60a..8ade87e 100644
 -                      Utility::clamp(std::pow((Options["UCI_Elo"] - 1346.6) / 143.4, 1 / 0.806), 0.0, 20.0) :
 -                        double(Options["Skill Level"]);
 +                      Utility::clamp(std::pow((Options["UCI_Elo"] - 1346.6) / 143.4, 1 / 0.806), -10.0, 20.0) :
-+                        double(Options["Skill Level"]-10);
++                        double(Options["Skill Level"]);
    int intLevel = int(floatLevel) +
                   ((floatLevel - int(floatLevel)) * 1024 > rng.rand<unsigned>() % 1024  ? 1 : 0);
    Skill skill(intLevel);
@@ -233,7 +233,7 @@ index ef54ef4..23f8566 100644
    o["Ponder"]                << Option(false);
    o["MultiPV"]               << Option(1, 1, 500);
 -  o["Skill Level"]           << Option(20, 0, 20);
-+  o["Skill Level"]           << Option(30, 0, 30);
++  o["Skill Level"]           << Option(20, -10, 20);
    o["Move Overhead"]         << Option(10, 0, 5000);
    o["Slow Mover"]            << Option(100, 10, 1000);
    o["nodestime"]             << Option(0, 0, 10000);

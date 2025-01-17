@@ -14,12 +14,15 @@ function main() {
     -Ilc0/src
     -Ieigen
     -Isrc
+    -std=c++17
+    -pthread
+    -msimd128
+    -mavx
+    -flto
     -Wno-deprecated-copy-with-user-provided-copy
     -Wno-deprecated-declarations
     -Wno-unused-command-line-argument
     -Wno-pthreads-mem-growth
-    -std=c++17
-    -pthread
     -D__arm__
     -DEIGEN_NO_CPUID
     -DEIGEN_DONT_VECTORIZE
@@ -27,7 +30,6 @@ function main() {
     -DUSE_POPCNT
     -DNO_PEXT
     -DDEFAULT_TASK_WORKERS=0
-    -flto
   )
   LD_FLAGS=(
     "${CXX_FLAGS[@]}"
@@ -35,17 +37,15 @@ function main() {
     -sEXPORTED_FUNCTIONS=[_free,_malloc,_main,_set_weights,_uci,_quit]
     -sEXPORTED_RUNTIME_METHODS=[stringToUTF8,lengthBytesUTF8,HEAPU8,callMain]
     -sINCOMING_MODULE_JS_API=[print,printErr,instantiateWasm,locateFile,noInitialRun]
-    #-sINITIAL_MEMORY=256MB
-    -sSTACK_SIZE=1MB
+    -sSTACK_SIZE=2MB
     -sSTRICT
-    -sFILESYSTEM=0
     -sPROXY_TO_PTHREAD
     -sALLOW_MEMORY_GROWTH
     -sEXIT_RUNTIME
     -sEXPORT_ES6
     -sEXPORT_NAME=zerofish
     -sENVIRONMENT=$ENVIRONMENT
-    -sALLOW_BLOCKING_ON_MAIN_THREAD=${DEBUG:-0}
+    -sALLOW_BLOCKING_ON_MAIN_THREAD=0 # ${DEBUG:-0} ???
   )
   SF_SOURCES=(
     bitbase.cpp bitboard.cpp endgame.cpp evaluate.cpp material.cpp misc.cpp movegen.cpp
@@ -85,7 +85,7 @@ function main() {
   if [ $LOCAL ]; then
     make -j
   else
-    docker run --rm -u $(id -u):$(id -g) -v "$PWD":/zf -w /zf emscripten/emsdk:3.1.64 sh -c 'make -j'
+    docker run --rm -u $(id -u):$(id -g) -v "$PWD":/zf -w /zf emscripten/emsdk:3.1.74 sh -c 'make -j'
   fi
   mv -f zerofishEngine.* "$OUT_DIR"
   popd > /dev/null
@@ -108,7 +108,7 @@ function parseArgs() {
       ENVIRONMENT="node"
     elif [ "$1" == "help" ] || [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
       echo "Usage: $0 [docker] [debug] [node]"
-      echo "  docker: build using docker emsdk:3.1.59"
+      echo "  docker: build using docker emsdk:3.1.74"
       echo "  debug: assertions, safe heap, no optimizations"
       echo "  node: build for nodejs"
       exit 0

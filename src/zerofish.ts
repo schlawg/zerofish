@@ -14,7 +14,7 @@ export type SearchBy = { depth: number } | { movetime: number } | { nodes: numbe
 export interface FishSearch {
   multipv: number;
   by: SearchBy;
-  level?: number;
+  level?: number; // -10 to 20
 }
 
 export interface ZeroSearch {
