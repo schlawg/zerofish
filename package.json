@@ -1,16 +1,16 @@
 {
   "name": "zerofish",
-  "version": "0.0.31",
+  "version": "0.0.32",
   "author": "T-bone Duplexus",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "main": "dist/zerofish.js",
   "dependencies": {
-    "@types/node": "^22.10.6",
-    "@types/web": "^0.0.194",
-    "@types/emscripten": "^1.39.13",
+    "@types/node": "^22.13.8",
+    "@types/web": "^0.0.208",
+    "@types/emscripten": "^1.40.0",
     "prettier": "3.4.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.8.2"
   },
   "scripts": {
     "format": "prettier --write .",

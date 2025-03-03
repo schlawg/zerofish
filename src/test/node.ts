@@ -8,12 +8,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 import createZerofish from '../zerofishEngine.js';
 
 const zf = await createZerofish();
+zf.listenFish = (data: string) => {
+  console.log('fish:', data);
+};
+zf.listenZero = (data: string) => {
+  console.log('zero: ', data);
+};
 let history: string[] = [],
   index = 0;
 
 console.log('Syntax: <fish|zero> <uci-command> <args>');
 
-zf.setZeroWeights(fs.readFileSync(`${__dirname}/../../wasm/weights/maia-1100.pb`));
+zf.setZeroWeights(fs.readFileSync(`${__dirname}/../../wasm/weights/badgyal-8.pb`));
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -45,10 +51,3 @@ process.stdin.on('keypress', (_, key) => {
     rl.write(history[++index]);
   }
 });
-
-zf.listenFish.onmessage = (e: MessageEvent) => {
-  console.log('fish: ', e.data);
-};
-zf.listenZero.onmessage = (e: MessageEvent) => {
-  console.log('zero: ', e.data);
-};

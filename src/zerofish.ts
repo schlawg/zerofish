@@ -1,6 +1,5 @@
 export interface ZerofishOpts {
-  root?: string;
-  wasm?: string;
+  locator?: (file: string) => string;
   dev?: boolean;
 }
 
@@ -47,16 +46,18 @@ export interface Zerofish {
   reset(): void;
 }
 
-export default async function initModule({ root, wasm, dev }: ZerofishOpts = {}): Promise<Zerofish> {
-  const module = await import(`${root ?? '.'}/zerofishEngine.js`);
+export default async function makeZerofish({ locator, dev }: ZerofishOpts = {}): Promise<Zerofish> {
+  const module = await import((locator ?? (x => x))('zerofishEngine.js'));
   const enginePromises = Array.from({ length: dev ? 2 : 1 }, () =>
     module.default({
-      locateFile: wasm ? () => wasm : undefined,
+      onError: (msg: string) => Promise.reject(new Error(msg)),
+      locateFile: locator,
       noInitialRun: true,
     })
   );
+
   const engines = await Promise.all(enginePromises);
-  engines[0].callMain([dev ? `${navigator.hardwareConcurrency}` : '4']); // 4 fish threads on main engine
+  engines[0].callMain(['4']); // 4 fish threads on main engine
   if (dev) engines[1].callMain(['0']); // we dont need any on the second.
   return new ZerofishImpl(engines);
 }
@@ -107,10 +108,7 @@ class ZerofishImpl implements Zerofish {
   }
 
   stop() {
-    this.fish('stop');
-    for (const w of this.workers) {
-      w.zero('stop');
-    }
+    this.all('stop');
   }
 
   async reset() {
@@ -119,9 +117,13 @@ class ZerofishImpl implements Zerofish {
   }
 
   private newGame() {
-    this.fish('ucinewgame');
-    this.fish('setoption name uci_chess960 value true');
-    for (const w of this.workers) w.zero('ucinewgame');
+    this.all('ucinewgame');
+    this.all('setoption name UCI_Chess960 value true');
+  }
+
+  private all(uci: string) {
+    this.fish(uci);
+    this.workers.forEach(w => w.zero(uci));
   }
 
   private async getNet(net: ZeroNet): Promise<number> {

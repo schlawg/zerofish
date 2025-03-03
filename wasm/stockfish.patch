@@ -90,7 +90,7 @@ index 373f1b7..15155be 100644
  namespace Utility {
  
 diff --git a/src/search.cpp b/src/search.cpp
-index 91ac60a..8ade87e 100644
+index 91ac60a..a19053d 100644
 --- a/src/search.cpp
 +++ b/src/search.cpp
 @@ -96,7 +96,7 @@ namespace {
@@ -114,17 +114,15 @@ index 91ac60a..8ade87e 100644
  }
  
  
-@@ -335,8 +335,8 @@ void Thread::search() {
+@@ -335,7 +335,7 @@ void Thread::search() {
    // for match (TC 60+0.6) results spanning a wide range of k values.
    PRNG rng(now());
    double floatLevel = Options["UCI_LimitStrength"] ?
 -                      Utility::clamp(std::pow((Options["UCI_Elo"] - 1346.6) / 143.4, 1 / 0.806), 0.0, 20.0) :
--                        double(Options["Skill Level"]);
 +                      Utility::clamp(std::pow((Options["UCI_Elo"] - 1346.6) / 143.4, 1 / 0.806), -10.0, 20.0) :
-+                        double(Options["Skill Level"]);
+                         double(Options["Skill Level"]);
    int intLevel = int(floatLevel) +
                   ((floatLevel - int(floatLevel)) * 1024 > rng.rand<unsigned>() % 1024  ? 1 : 0);
-   Skill skill(intLevel);
 @@ -1776,14 +1776,12 @@ moves_loop: // When in check, search starts from here
          // This is our magic formula
          int push = (  weakness * int(topScore - rootMoves[i].score)
@@ -220,7 +218,7 @@ index ad954d9..e36a676 100644
  std::string value(Value v);
  std::string square(Square s);
 diff --git a/src/ucioption.cpp b/src/ucioption.cpp
-index ef54ef4..23f8566 100644
+index ef54ef4..ce28308 100644
 --- a/src/ucioption.cpp
 +++ b/src/ucioption.cpp
 @@ -62,18 +62,18 @@ void init(OptionsMap& o) {
@@ -228,7 +226,7 @@ index ef54ef4..23f8566 100644
    o["Analysis Contempt"]     << Option("Both var Off var White var Black var Both", "Both");
    o["Threads"]               << Option(1, 1, 512, on_threads);
 -  o["Hash"]                  << Option(16, 1, MaxHashMB, on_hash_size);
-+  o["Hash"]                  << Option(4, 1, MaxHashMB, on_hash_size);
++  o["Hash"]                  << Option(1, 1, MaxHashMB, on_hash_size);
    o["Clear Hash"]            << Option(on_clear_hash);
    o["Ponder"]                << Option(false);
    o["MultiPV"]               << Option(1, 1, 500);

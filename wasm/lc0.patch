@@ -120,7 +120,7 @@ index bae8e3d..558d264 100644
    void SendResponse(const std::string& response);
    // Sends responses to host ensuring they are received as a block.
 diff --git a/src/engine.cc b/src/engine.cc
-index a632ebb..dcafd65 100644
+index a632ebb..7db1943 100644
 --- a/src/engine.cc
 +++ b/src/engine.cc
 @@ -30,9 +30,11 @@
@@ -135,8 +135,12 @@ index a632ebb..dcafd65 100644
  #include "utils/configfile.h"
  #include "utils/logging.h"
  
-@@ -99,7 +101,6 @@ void EngineController::PopulateOptions(OptionsParser* options) {
-   options->Add<IntOption>(kNNCacheSizeId, 0, 999999999) = 2000000;
+@@ -96,10 +98,9 @@ void EngineController::PopulateOptions(OptionsParser* options) {
+ 
+   NetworkFactory::PopulateOptions(options);
+   options->Add<IntOption>(kThreadsOptionId, 1, 128) = kDefaultThreads;
+-  options->Add<IntOption>(kNNCacheSizeId, 0, 999999999) = 2000000;
++  options->Add<IntOption>(kNNCacheSizeId, 0, 999999999) = 1000;
    SearchParams::Populate(options);
  
 -  options->Add<StringOption>(kSyzygyTablebaseId);

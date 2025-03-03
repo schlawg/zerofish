@@ -25,6 +25,7 @@ function main() {
     -Wno-pthreads-mem-growth
     -D__arm__
     -DEIGEN_NO_CPUID
+    -DEIGEN_NO_MALLOC
     -DEIGEN_DONT_VECTORIZE
     -DEIGEN_DONT_PARALLELIZE
     -DUSE_POPCNT
@@ -35,17 +36,18 @@ function main() {
     "${CXX_FLAGS[@]}"
     --pre-js=src/initModule.js
     -sEXPORTED_FUNCTIONS=[_free,_malloc,_main,_set_weights,_uci,_quit]
-    -sEXPORTED_RUNTIME_METHODS=[stringToUTF8,lengthBytesUTF8,HEAPU8,callMain]
+    -sEXPORTED_RUNTIME_METHODS=[stringToUTF8,lengthBytesUTF8,HEAPU8,callMain,PThread]
     -sINCOMING_MODULE_JS_API=[print,printErr,instantiateWasm,locateFile,noInitialRun]
-    -sSTACK_SIZE=2MB
+    -sSTACK_SIZE=1MB
+    -sINITIAL_MEMORY=160MB
+    -sMAXIMUM_MEMORY=160MB
+    -sALLOW_MEMORY_GROWTH
     -sSTRICT
     -sPROXY_TO_PTHREAD
-    -sALLOW_MEMORY_GROWTH
     -sEXIT_RUNTIME
     -sEXPORT_ES6
-    -sEXPORT_NAME=zerofish
     -sENVIRONMENT=$ENVIRONMENT
-    -sALLOW_BLOCKING_ON_MAIN_THREAD=0 # ${DEBUG:-0} ???
+    -sALLOW_BLOCKING_ON_MAIN_THREAD=0
   )
   SF_SOURCES=(
     bitbase.cpp bitboard.cpp endgame.cpp evaluate.cpp material.cpp misc.cpp movegen.cpp
