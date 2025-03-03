@@ -1,5 +1,6 @@
 export interface ZerofishOpts {
-  locator?: (file: string) => string;
+  locator: (file: string) => string;
+  nonce?: string;
   dev?: boolean;
 }
 
@@ -46,16 +47,24 @@ export interface Zerofish {
   reset(): void;
 }
 
-export default async function makeZerofish({ locator, dev }: ZerofishOpts = {}): Promise<Zerofish> {
-  const module = await import((locator ?? (x => x))('zerofishEngine.js'));
+export default async function makeZerofish({ locator, nonce, dev }: ZerofishOpts): Promise<Zerofish> {
+  const rsp = await fetch(locator('zerofishEngine.js'), { cache: 'force-cache' });
+  if (!rsp.ok) throw new Error(`network error ${rsp.status} fetching ${locator('zerofishEngine.js')}`);
+
+  const blobUrl = URL.createObjectURL(new Blob([await rsp.text()], { type: 'application/javascript' }));
+  const script = document.createElement('script');
+  script.src = blobUrl;
+  script.nonce = nonce;
+  document.body.appendChild(script);
+  await new Promise(resolve => (script.onload = resolve));
   const enginePromises = Array.from({ length: dev ? 2 : 1 }, () =>
-    module.default({
+    (window as any).makeZerofishEngine({
+      mainScriptUrlOrBlob: blobUrl,
       onError: (msg: string) => Promise.reject(new Error(msg)),
       locateFile: locator,
       noInitialRun: true,
     })
   );
-
   const engines = await Promise.all(enginePromises);
   engines[0].callMain(['4']); // 4 fish threads on main engine
   if (dev) engines[1].callMain(['0']); // we dont need any on the second.

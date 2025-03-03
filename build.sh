@@ -36,8 +36,8 @@ function main() {
     "${CXX_FLAGS[@]}"
     --pre-js=src/initModule.js
     -sEXPORTED_FUNCTIONS=[_free,_malloc,_main,_set_weights,_uci,_quit]
-    -sEXPORTED_RUNTIME_METHODS=[stringToUTF8,lengthBytesUTF8,HEAPU8,callMain,PThread]
-    -sINCOMING_MODULE_JS_API=[print,printErr,instantiateWasm,locateFile,noInitialRun]
+    -sEXPORTED_RUNTIME_METHODS=[stringToUTF8,lengthBytesUTF8,HEAPU8,callMain]
+    -sINCOMING_MODULE_JS_API=[print,printErr,mainScriptUrlOrBlob,locateFile,noInitialRun]
     -sSTACK_SIZE=1MB
     -sINITIAL_MEMORY=160MB
     -sMAXIMUM_MEMORY=160MB
@@ -45,7 +45,8 @@ function main() {
     -sSTRICT
     -sPROXY_TO_PTHREAD
     -sEXIT_RUNTIME
-    -sEXPORT_ES6
+    -sMODULARIZE
+    -sEXPORT_NAME=makeZerofishEngine
     -sENVIRONMENT=$ENVIRONMENT
     -sALLOW_BLOCKING_ON_MAIN_THREAD=0
   )
