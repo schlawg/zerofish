@@ -87,7 +87,7 @@ function main() {
   if [ $LOCAL ]; then
     make -j
   else
-    docker run --rm -u $(id -u):$(id -g) -v "$PWD":/zf -w /zf emscripten/emsdk:3.1.74 sh -c 'make -j'
+    docker run --rm -u $(id -u):$(id -g) -v "$PWD":/zf -w /zf emscripten/emsdk:latest sh -c 'make -j'
   fi
   mv -f zerofishEngine.* "$OUT_DIR"
   popd > /dev/null
@@ -110,7 +110,7 @@ function parseArgs() {
       ENVIRONMENT="node"
     elif [ "$1" == "help" ] || [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
       echo "Usage: $0 [docker] [debug] [node]"
-      echo "  docker: build using docker emsdk:3.1.74"
+      echo "  docker: build using docker emsdk:latest"
       echo "  debug: assertions, safe heap, no optimizations"
       echo "  node: build for nodejs"
       exit 0
