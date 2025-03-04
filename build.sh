@@ -16,8 +16,8 @@ function main() {
     -Isrc
     -std=c++17
     -pthread
-    -msimd128
-    -mavx
+    #-msimd128
+    #-mavx
     -flto
     -Wno-deprecated-copy-with-user-provided-copy
     -Wno-deprecated-declarations

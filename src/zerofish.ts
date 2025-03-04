@@ -48,18 +48,16 @@ export interface Zerofish {
 }
 
 export default async function makeZerofish({ locator, nonce, dev }: ZerofishOpts): Promise<Zerofish> {
-  const rsp = await fetch(locator('zerofishEngine.js'), { cache: 'force-cache' });
-  if (!rsp.ok) throw new Error(`network error ${rsp.status} fetching ${locator('zerofishEngine.js')}`);
-
-  const blobUrl = URL.createObjectURL(new Blob([await rsp.text()], { type: 'application/javascript' }));
+  const jsUrl = locator('zerofishEngine.js');
   const script = document.createElement('script');
-  script.src = blobUrl;
+  script.src = jsUrl;
   script.nonce = nonce;
   document.body.appendChild(script);
   await new Promise(resolve => (script.onload = resolve));
+
   const enginePromises = Array.from({ length: dev ? 2 : 1 }, () =>
     (window as any).makeZerofishEngine({
-      mainScriptUrlOrBlob: blobUrl,
+      mainScriptUrlOrBlob: jsUrl,
       onError: (msg: string) => Promise.reject(new Error(msg)),
       locateFile: locator,
       noInitialRun: true,
