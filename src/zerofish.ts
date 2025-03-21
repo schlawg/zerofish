@@ -30,11 +30,11 @@ export interface Position {
 
 export interface Line {
   moves: string[];
-  scores: number[];
+  score: number;
 }
 
 export interface SearchResult {
-  lines: Line[];
+  lines: Line[][]; // [depth][pv]
   bestmove: string;
   engine: 'fish' | 'zero';
 }
@@ -83,6 +83,7 @@ class ZerofishImpl implements Zerofish {
   private lru = new Map<string, number>();
 
   constructor(private workers: Worker[]) {
+    this.all('setoption name UCI_Chess960 value true');
     this.newGame();
   }
 
@@ -125,7 +126,6 @@ class ZerofishImpl implements Zerofish {
 
   private newGame() {
     this.all('ucinewgame');
-    this.all('setoption name UCI_Chess960 value true');
   }
 
   private all(uci: string) {
@@ -149,10 +149,9 @@ class ZerofishImpl implements Zerofish {
 
   private go(pos: Position, { multipv, by, level, worker, engine }: PB): Promise<SearchResult> {
     const listen = engine === 'fish' ? 'listenFish' : 'listenZero';
-    const lines: Line[] = Array.from({ length: multipv }, () => ({
-      moves: [],
-      scores: [],
-    }));
+    const newLine = () => Array.from({ length: multipv }, () => ({ moves: [], score: 0 }));
+    const result: Line[][] = [];
+    const uciMap = new Map<string, Line>();
     const { fen, moves } = pos;
     const uci = worker[engine];
 
@@ -163,24 +162,20 @@ class ZerofishImpl implements Zerofish {
       };
       worker[listen] = (line: string) => {
         const tokens = line.split(' ');
+        const numericValueOf = (field: string) => {
+          const index = tokens.indexOf(field, 2);
+          return index === -1 ? undefined : Number(tokens[index + 1]);
+        };
         if (tokens[0] === 'bestmove') {
           worker[listen] = undefined;
-          resolve({
-            bestmove: tokens[1],
-            lines: lines.find(v => v.moves[0] === tokens[1]) ? lines : [{ moves: [tokens[1]], scores: [0] }],
-            engine: engine,
-          });
-        } else if (tokens[0] === 'info') {
-          if (tokens[1] !== 'depth') return;
-          const find = (field: string) => {
-            const index = tokens.indexOf(field, 2);
-            return index === -1 ? undefined : Number(tokens[index + 1]);
-          };
-          const pvIndex = find('multipv') ?? 1;
-          const mate = find('mate');
-          const pv: Line = lines[pvIndex - 1];
-          pv.scores.push(find('cp') ?? (mate !== undefined ? (mate > 0 ? 10000 : -10000) : NaN));
-          pv.moves = tokens.slice(tokens.indexOf('pv') + 1);
+          resolve({ bestmove: tokens[1], lines: result, engine });
+        } else if (tokens[0] === 'info' && tokens[1] === 'depth') {
+          while (result.length < Number(tokens[2])) result.push(newLine());
+
+          const pvIndex = numericValueOf('multipv') ?? 1;
+          const mate = numericValueOf('mate');
+          const score = numericValueOf('cp') ?? (mate !== undefined ? (mate > 0 ? 10000 : -10000) : NaN);
+          result[result.length - 1][pvIndex - 1] = { score, moves: tokens.slice(tokens.indexOf('pv') + 1) };
         }
       };
       uci('position ' + (fen ? `fen ${fen}` : 'startpos') + (moves?.[0] ? ` moves ${moves.join(' ')}` : ''));
