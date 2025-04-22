@@ -49,14 +49,10 @@ export interface Zerofish {
 
 export default async function makeZerofish({ locator, nonce, dev }: ZerofishOpts): Promise<Zerofish> {
   const jsUrl = locator('zerofishEngine.js');
-  const script = document.createElement('script');
-  script.src = jsUrl;
-  script.nonce = nonce;
-  document.body.appendChild(script);
-  await new Promise(resolve => (script.onload = resolve));
+  const module = await import(jsUrl);
 
   const enginePromises = Array.from({ length: dev ? 2 : 1 }, () =>
-    (window as any).makeZerofishEngine({
+    module.default({
       mainScriptUrlOrBlob: jsUrl,
       onError: (msg: string) => Promise.reject(new Error(msg)),
       locateFile: locator,
