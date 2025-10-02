@@ -1,7 +1,6 @@
 {
-  "name": "zerofish",
+  "name": "@lichess-org/zerofish",
   "version": "0.0.36",
-  "author": "T-bone Duplexus",
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "main": "dist/zerofish.js",

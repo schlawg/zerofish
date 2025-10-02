@@ -57,7 +57,7 @@ export default async function makeZerofish({ locator, nonce, dev }: ZerofishOpts
       onError: (msg: string) => Promise.reject(new Error(msg)),
       locateFile: locator,
       noInitialRun: true,
-    })
+    }),
   );
   const engines = await Promise.all(enginePromises);
   engines[0].callMain(['4']); // 4 fish threads on main engine
