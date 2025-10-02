@@ -2,6 +2,9 @@
   "name": "@lichess-org/zerofish",
   "version": "0.0.39",
   "license": "AGPL-3.0-or-later",
+  "repository": {
+    "url": "git+https://github.com/lichess-org/zerofish.git"
+  },
   "type": "module",
   "main": "dist/zerofish.js",
   "dependencies": {
