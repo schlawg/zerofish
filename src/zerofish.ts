@@ -1,6 +1,5 @@
 export interface ZerofishOpts {
   locator: (file: string) => string;
-  nonce?: string;
   dev?: boolean;
 }
 
@@ -47,14 +46,13 @@ export interface Zerofish {
   reset(): void;
 }
 
-export default async function makeZerofish({ locator, nonce, dev }: ZerofishOpts): Promise<Zerofish> {
+export default async function makeZerofish({ locator, dev }: ZerofishOpts): Promise<Zerofish> {
   const jsUrl = locator('zerofishEngine.js');
   const module = await import(jsUrl);
 
   const enginePromises = Array.from({ length: dev ? 2 : 1 }, () =>
     module.default({
       mainScriptUrlOrBlob: jsUrl,
-      onError: (msg: string) => Promise.reject(new Error(msg)),
       locateFile: locator,
       noInitialRun: true,
     })
