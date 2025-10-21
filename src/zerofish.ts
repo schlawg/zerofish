@@ -57,17 +57,25 @@ export default async function makeZerofish({ locator, nonce, dev }: ZerofishOpts
       onError: (msg: string) => Promise.reject(new Error(msg)),
       locateFile: locator,
       noInitialRun: true,
-    }),
+    })
   );
   const engines = await Promise.all(enginePromises);
   engines[0].callMain(['4']); // 4 fish threads on main engine
   if (dev) engines[1].callMain(['0']); // we dont need any on the second.
-  return new ZerofishImpl(engines);
+  return new ZerofishEngines(engines);
 }
 
-type Worker = any;
+interface Worker {
+  // webassembly module augmented with /zerofish/wasm/src/initModule.js
+  fish: (uci: string) => void;
+  zero: (uci: string) => void;
+  setZeroWeights: (weights: Uint8Array) => void;
+  listenFish?: (line: string) => void;
+  listenZero?: (line: string) => void;
+  quit: () => void;
+}
 
-interface PB {
+interface SearchArgs {
   multipv: number;
   by: SearchBy;
   level?: number;
@@ -75,7 +83,7 @@ interface PB {
   engine: 'fish' | 'zero';
 }
 
-class ZerofishImpl implements Zerofish {
+class ZerofishEngines implements Zerofish {
   private lru = new Map<string, number>();
 
   constructor(private workers: Worker[]) {
@@ -83,7 +91,7 @@ class ZerofishImpl implements Zerofish {
     this.newGame();
   }
 
-  get fish(): Worker {
+  get fish(): (uci: string) => void {
     return this.workers[0].fish;
   }
 
@@ -107,8 +115,7 @@ class ZerofishImpl implements Zerofish {
   }
 
   quit() {
-    this.stop();
-    for (const w of this.workers) w.quit();
+    this.workers.forEach(w => w.quit());
   }
 
   stop() {
@@ -143,19 +150,14 @@ class ZerofishImpl implements Zerofish {
     return netIndex;
   }
 
-  private go(pos: Position, { multipv, by, level, worker, engine }: PB): Promise<SearchResult> {
-    const listen = engine === 'fish' ? 'listenFish' : 'listenZero';
+  private go(pos: Position, { multipv, by, level, worker, engine }: SearchArgs): Promise<SearchResult> {
     const newLine = () => Array.from({ length: multipv }, () => ({ moves: [], score: 0 }));
+    const sendUci = worker[engine];
+    const listen = engine === 'fish' ? 'listenFish' : 'listenZero';
     const result: Line[][] = [];
-    const uciMap = new Map<string, Line>();
     const { fen, moves } = pos;
-    const uci = worker[engine];
 
     return new Promise<SearchResult>(async (resolve, reject) => {
-      const onError = (err: string) => {
-        worker[listen] = undefined;
-        reject(err);
-      };
       worker[listen] = (line: string) => {
         const tokens = line.split(' ');
         const numericValueOf = (field: string) => {
@@ -174,12 +176,14 @@ class ZerofishImpl implements Zerofish {
           result[result.length - 1][pvIndex - 1] = { score, moves: tokens.slice(tokens.indexOf('pv') + 1) };
         }
       };
-      uci('position ' + (fen ? `fen ${fen}` : 'startpos') + (moves?.[0] ? ` moves ${moves.join(' ')}` : ''));
-      uci(`setoption name multipv value ${multipv}`);
-      if (engine === 'fish') uci(`setoption name skill level value ${level ?? 30}`);
-      if ('movetime' in by) uci(`go movetime ${by.movetime}`);
-      else if ('nodes' in by) uci(`go nodes ${by.nodes}`);
-      else if ('depth' in by) uci(`go depth ${by.depth}`);
+      sendUci(
+        'position ' + (fen ? `fen ${fen}` : 'startpos') + (moves?.[0] ? ` moves ${moves.join(' ')}` : '')
+      );
+      sendUci(`setoption name multipv value ${multipv}`);
+      if (engine === 'fish') sendUci(`setoption name skill level value ${level ?? 30}`);
+      if ('movetime' in by) sendUci(`go movetime ${by.movetime}`);
+      else if ('nodes' in by) sendUci(`go nodes ${by.nodes}`);
+      else if ('depth' in by) sendUci(`go depth ${by.depth}`);
       else reject(`invalid search ${JSON.stringify(by)}`);
     });
   }

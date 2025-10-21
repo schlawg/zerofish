@@ -26,3 +26,5 @@ function uci(cmd, isFish) {
   _uci(utf8, isFish);
   _free(utf8);
 }
+
+Module['quit'] = () => _quit();

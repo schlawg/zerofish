@@ -16,8 +16,6 @@ function main() {
     -Isrc
     -std=c++17
     -pthread
-    #-msimd128
-    #-mavx
     -flto
     -Wno-deprecated-copy-with-user-provided-copy
     -Wno-deprecated-declarations
@@ -41,7 +39,6 @@ function main() {
     -sSTACK_SIZE=1MB
     -sINITIAL_MEMORY=160MB
     -sMAXIMUM_MEMORY=160MB
-    #-sALLOW_MEMORY_GROWTH
     -sSTRICT
     -sPROXY_TO_PTHREAD
     -sEXIT_RUNTIME
